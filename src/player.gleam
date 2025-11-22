@@ -17,9 +17,14 @@ pub type PlayerModel {
   PlayerModel(x: Float, y: Float, texture: option.Option(asset.Texture))
 }
 
+pub type Movement {
+  Keys(up: Bool, down: Bool, left: Bool, right: Bool)
+}
+
 pub type PlayerMsg {
   TextureLoaded(asset.Texture)
   ErrorMessage(String)
+  PlayerMove(Movement)
 }
 
 pub fn init() -> #(PlayerModel, Effect(PlayerMsg)) {
@@ -48,6 +53,19 @@ pub fn update(
       io.print_error(error)
       #(model, effect.none())
     }
+    PlayerMove(movement) -> {
+      let x = add_input(model.x, movement.left, movement.right, 3.0)
+      let y = add_input(model.y, movement.up, movement.down, 3.0)
+      #(PlayerModel(..model, x: x, y: y), effect.none())
+    }
+  }
+}
+
+fn add_input(val: Float, neg: Bool, pos: Bool, offset: Float) -> Float {
+  case neg, pos {
+    False, False | True, True -> val
+    False, True -> val +. offset
+    True, False -> val -. offset
   }
 }
 
@@ -55,6 +73,7 @@ pub fn player_view(player: PlayerModel) -> scene.Node(String) {
   let assert Ok(sprite_geom) = geometry.plane(width: 50.0, height: 50.0)
   let assert Ok(sprite_mat) =
     material.basic(
+      // lucy pink colour
       color: 0xffaff3,
       transparent: True,
       opacity: 1.0,
