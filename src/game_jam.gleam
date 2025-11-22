@@ -1,7 +1,9 @@
 /// 2D Game Example - Orthographic Camera
+import enemy
 import gleam/float
 import gleam/option
 import player
+import shot
 import tiramisu
 import tiramisu/background
 import tiramisu/camera
@@ -10,15 +12,24 @@ import tiramisu/input
 import tiramisu/light
 import tiramisu/scene
 import tiramisu/transform
+import tower
+import vec/vec2
 import vec/vec3
 
 pub type Model {
-  Model(time: Float, player_model: player.PlayerModel)
+  Model(
+    time: Float,
+    player: player.PlayerModel,
+    tower: tower.TowerModel,
+    shots: shot.ShotModel,
+    camera_position: vec2.Vec2(Float),
+  )
 }
 
 pub type Msg {
   Tick
   PlayerMsg(player.PlayerMsg)
+  TowerMsg(tower.TowerMsg)
 }
 
 pub fn main() -> Nil {
@@ -36,9 +47,20 @@ fn init(
 ) -> #(Model, Effect(Msg), option.Option(_)) {
   let #(player_model, player_effect) = player.init()
   let player_effect = effect.map(player_effect, fn(msg) { PlayerMsg(msg) })
+  let #(tower_model, tower_effect) = tower.init()
+  let tower_effect = effect.map(tower_effect, fn(msg) { TowerMsg(msg) })
+
+  let shot_model = shot.init()
+
   #(
-    Model(time: 0.0, player_model: player_model),
-    effect.batch([effect.tick(Tick), player_effect]),
+    Model(
+      time: 0.0,
+      player: player_model,
+      tower: tower_model,
+      camera_position: vec2.Vec2(0.0, 0.0),
+      shots: shot_model,
+    ),
+    effect.batch([effect.tick(Tick), player_effect, tower_effect]),
     option.None,
   )
 }
@@ -55,26 +77,44 @@ fn update(
   let right = input.is_key_pressed(ctx.input, input.KeyD)
 
   let player_movement = player.Keys(up, down, left, right)
-  let #(player_model, player_move_effect) =
-    player.update(model.player_model, player.PlayerMove(player_movement))
-  let player_move_effect =
-    effect.map(player_move_effect, fn(msg) { PlayerMsg(msg) })
-  let model = Model(..model, player_model: player_model)
+  let player_model = player.move(model.player, player_movement)
+  let model =
+    Model(
+      ..model,
+      player: player_model,
+      camera_position: vec2.Vec2(player_model.x, player_model.y),
+    )
+
+  let shoot = input.is_key_just_pressed(ctx.input, input.Space)
+  let shot_model = case shoot {
+    True -> {
+      shot.create_shots(model.shots, player.get_points(model.player))
+    }
+    False -> model.shots
+  }
+  let model = Model(..model, shots: shot_model)
 
   let #(model, effect) = case msg {
     Tick -> {
       let new_time = model.time +. ctx.delta_time /. 1000.0
-      #(Model(..model, time: new_time), effect.tick(Tick))
+      // tick things that need it
+      let shot_model = shot.tick(model.shots)
+
+      #(Model(..model, time: new_time, shots: shot_model), effect.tick(Tick))
     }
     PlayerMsg(msg) -> {
-      let #(player_model, player_effect) =
-        player.update(model.player_model, msg)
+      let #(player_model, player_effect) = player.update(model.player, msg)
       let player_effect = effect.map(player_effect, fn(msg) { PlayerMsg(msg) })
-      #(Model(..model, player_model: player_model), player_effect)
+      #(Model(..model, player: player_model), player_effect)
+    }
+    TowerMsg(msg) -> {
+      let #(tower_model, tower_effect) = tower.update(model.tower, msg)
+      let tower_effect = effect.map(tower_effect, fn(msg) { TowerMsg(msg) })
+      #(Model(..model, tower: tower_model), tower_effect)
     }
   }
 
-  #(model, effect.batch([effect, player_move_effect]), option.None)
+  #(model, effect, option.None)
 }
 
 fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {
@@ -88,7 +128,11 @@ fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {
     scene.camera(
       id: "camera",
       camera: cam,
-      transform: transform.at(position: vec3.Vec3(0.0, 0.0, 20.0)),
+      transform: transform.at(position: vec3.Vec3(
+        model.camera_position.x,
+        model.camera_position.y,
+        20.0,
+      )),
       look_at: option.None,
       active: True,
       viewport: option.None,
@@ -102,6 +146,8 @@ fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {
       },
       transform: transform.identity,
     ),
-    player.player_view(model.player_model),
+    player.view(model.player),
+    tower.view(model.tower),
+    shot.view(model.shots),
   ])
 }
