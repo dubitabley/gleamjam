@@ -1,23 +1,23 @@
 /// 2D Game Example - Orthographic Camera
 import gleam/float
 import gleam/option
+import player
 import tiramisu
 import tiramisu/background
 import tiramisu/camera
 import tiramisu/effect.{type Effect}
-import tiramisu/geometry
 import tiramisu/light
-import tiramisu/material
 import tiramisu/scene
 import tiramisu/transform
 import vec/vec3
 
 pub type Model {
-  Model(time: Float)
+  Model(time: Float, player_model: player.PlayerModel)
 }
 
 pub type Msg {
   Tick
+  PlayerMsg(player.PlayerMsg)
 }
 
 pub fn main() -> Nil {
@@ -30,8 +30,16 @@ pub fn main() -> Nil {
   )
 }
 
-fn init(_ctx: tiramisu.Context(String)) -> #(Model, Effect(Msg), option.Option(_)) {
-  #(Model(time: 0.0), effect.tick(Tick), option.None)
+fn init(
+  _ctx: tiramisu.Context(String),
+) -> #(Model, Effect(Msg), option.Option(_)) {
+  let #(player_model, player_effect) = player.init()
+  let player_effect = effect.map(player_effect, fn(msg) { PlayerMsg(msg) })
+  #(
+    Model(time: 0.0, player_model: player_model),
+    effect.batch([effect.tick(Tick), player_effect]),
+    option.None,
+  )
 }
 
 fn update(
@@ -42,18 +50,24 @@ fn update(
   case msg {
     Tick -> {
       let new_time = model.time +. ctx.delta_time /. 1000.0
-      #(Model(time: new_time), effect.tick(Tick), option.None)
+      #(Model(..model, time: new_time), effect.tick(Tick), option.None)
+    }
+    PlayerMsg(msg) -> {
+      let #(player_model, player_effect) =
+        player.update(model.player_model, msg)
+      let player_effect = effect.map(player_effect, fn(msg) { PlayerMsg(msg) })
+      #(Model(..model, player_model: player_model), player_effect, option.None)
     }
   }
+  // handle input
 }
 
 fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {
-  let cam = camera.camera_2d(
-    width: float.round(ctx.canvas_width),
-    height: float.round(ctx.canvas_height),
-  )
-  let assert Ok(sprite_geom) = geometry.plane(width: 50.0, height: 50.0)
-  let assert Ok(sprite_mat) = material.basic(color: 0xff0066, transparent: False, opacity: 1.0, map: option.None)
+  let cam =
+    camera.camera_2d(
+      width: float.round(ctx.canvas_width),
+      height: float.round(ctx.canvas_height),
+    )
 
   scene.empty(id: "Scene", transform: transform.identity, children: [
     scene.camera(
@@ -73,14 +87,6 @@ fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {
       },
       transform: transform.identity,
     ),
-    scene.mesh(
-      id: "sprite",
-      geometry: sprite_geom,
-      material: sprite_mat,
-      transform:
-        transform.at(position: vec3.Vec3(0.0, 0.0, 0.0))
-        |> transform.with_euler_rotation(vec3.Vec3(0.0, 0.0, model.time)),
-      physics: option.None,
-    ),
+    player.player_view(model.player_model),
   ])
 }
