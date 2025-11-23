@@ -1,0 +1,42 @@
+name: publish
+
+on:
+    push:
+        branches:
+            - main
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+jobs:
+    # https://hexdocs.pm/lustre/guide/04-spa-deployments.html
+    publish:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repo
+              uses: actions/checkout@v4
+            - name: Set up gleam
+              uses: erlef/setup-beam@v1
+              with:
+                  otp-version: "28"
+                  gleam-version: "1.13.0"
+                  rebar3-version: "3"
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+            - name: Install dependencies
+              run: gleam deps download
+            - name: Install bun dependencies
+              run: bun install
+            - name: Build app
+              # note minify doesn't work for some reason (used to have --minify here)
+              run: gleam run -m lustre/dev build --outdir=dist
+            - name: Setup Pages
+              uses: actions/configure-pages@v5
+            - name: Upload artifact
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: "dist"
+            - name: Deploy to GitHub Pages
+              id: deployment
+              uses: actions/deploy-pages@v4

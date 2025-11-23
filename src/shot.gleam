@@ -26,8 +26,8 @@ pub fn init() -> ShotModel {
 pub fn tick(model: ShotModel) -> ShotModel {
   ShotModel(
     list.map(model.shots, fn(shot) {
-      let x = shot.x +. 5.0 *. maths.sin(shot.direction)
-      let y = shot.y +. 5.0 *. maths.cos(shot.direction)
+      let x = shot.x +. 10.0 *. maths.sin(shot.direction)
+      let y = shot.y +. 10.0 *. maths.cos(shot.direction)
       Shot(x, y, shot.direction)
     }),
   )

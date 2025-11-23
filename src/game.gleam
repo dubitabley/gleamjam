@@ -1,10 +1,8 @@
 import gleam/float
-import gleam/io
 import gleam/option
 import player
 import shot
 import tiramisu
-import tiramisu/background
 import tiramisu/camera
 import tiramisu/effect.{type Effect}
 import tiramisu/input
