@@ -21,6 +21,7 @@ todo:
 - change background
 - add load progress to page
 - upgrades to tower?
+- health bars
 
 done:
 

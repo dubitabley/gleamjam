@@ -24,11 +24,13 @@ pub type Model {
     enemies: enemy.EnemyModel,
     camera_position: vec2.Vec2(Float),
     asset_cache: asset.AssetCache,
+    wave: Int,
   )
 }
 
 pub type Msg {
   Tick
+  StartWave
 }
 
 pub fn init(
@@ -40,7 +42,6 @@ pub fn init(
 
   let shot_model = shot.init()
   let enemy_model = enemy.init()
-  let enemy_model = enemy.add_enemy(enemy_model)
 
   #(
     Model(
@@ -51,8 +52,9 @@ pub fn init(
       shots: shot_model,
       enemies: enemy_model,
       asset_cache: asset_cache,
+      wave: 0,
     ),
-    effect.tick(Tick),
+    effect.batch([effect.tick(Tick), effect.none()]),
     option.None,
   )
 }
@@ -62,6 +64,25 @@ pub fn update(
   msg: Msg,
   ctx: tiramisu.Context(String),
 ) -> #(Model, Effect(Msg), option.Option(_)) {
+  let #(model, effect) = case msg {
+    Tick -> {
+      let new_time = model.time +. ctx.delta_time /. 1000.0
+      // run the game loop
+      let model = game_loop(model, ctx)
+
+      #(Model(..model, time: new_time), effect.tick(Tick))
+    }
+    StartWave -> {
+      let new_wave = model.wave + 1
+      // add enemies as appropriate
+      #(model, effect.none())
+    }
+  }
+
+  #(model, effect, option.None)
+}
+
+fn game_loop(model: Model, ctx: tiramisu.Context(String)) -> Model {
   // handle input to move player around
   let up = input.is_key_pressed(ctx.input, input.KeyS)
   let down = input.is_key_pressed(ctx.input, input.KeyW)
@@ -70,12 +91,6 @@ pub fn update(
 
   let player_movement = player.Keys(up, down, left, right)
   let player_model = player.move(model.player, player_movement)
-  let model =
-    Model(
-      ..model,
-      player: player_model,
-      camera_position: vec2.Vec2(player_model.x, player_model.y),
-    )
 
   let shoot = input.is_key_just_pressed(ctx.input, input.Space)
   let shot_model = case shoot {
@@ -84,19 +99,13 @@ pub fn update(
     }
     False -> model.shots
   }
-  let model = Model(..model, shots: shot_model)
-
-  let #(model, effect) = case msg {
-    Tick -> {
-      let new_time = model.time +. ctx.delta_time /. 1000.0
-      // tick things that need it
-      let shot_model = shot.tick(model.shots)
-
-      #(Model(..model, time: new_time, shots: shot_model), effect.tick(Tick))
-    }
-  }
-
-  #(model, effect, option.None)
+  let shot_model = shot.tick(shot_model)
+  Model(
+    ..model,
+    player: player_model,
+    camera_position: vec2.Vec2(player_model.x, player_model.y),
+    shots: shot_model,
+  )
 }
 
 pub fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {

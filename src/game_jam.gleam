@@ -1,5 +1,6 @@
 import game
 import gleam/float
+import gleam/int
 import gleam/option
 import loader
 import lustre
@@ -21,7 +22,11 @@ import vec/vec3
 pub type State {
   Menu
   Loading(option.Option(asset.LoadProgress))
-  Playing
+  Playing(PlayingInfo)
+}
+
+pub type PlayingInfo {
+  PlayingInfo(wave: Int, enemies: Int)
 }
 
 pub type Model {
@@ -31,6 +36,8 @@ pub type Model {
 pub type Msg {
   StartLoad
   LoadAssetInfo(loader.LoadState)
+  StartWaveUi(PlayingInfo)
+  ChangeEnemies(Int)
 }
 
 pub fn main() -> Nil {
@@ -65,12 +72,23 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
           ui_effect.none(),
         )
         loader.AssetsLoaded(load_results) -> #(
-          Model(state: Playing),
+          Model(state: Playing(PlayingInfo(0, 0))),
           ui.dispatch_to_tiramisu(StartGame(load_results.cache)),
         )
       }
     }
-    _, StartLoad -> #(model, ui_effect.none())
+    Playing(_), StartWaveUi(new_info) -> #(
+      Model(Playing(new_info)),
+      ui_effect.none(),
+    )
+    Playing(info), ChangeEnemies(enemy_num) -> #(
+      Model(Playing(PlayingInfo(info.wave, enemy_num))),
+      ui_effect.none(),
+    )
+    _, StartLoad | _, StartWaveUi(_) | _, ChangeEnemies(_) -> #(
+      model,
+      ui_effect.none(),
+    )
   }
 }
 
@@ -79,7 +97,7 @@ fn view_ui(model: Model) -> Element(Msg) {
     case model.state {
       Menu -> menu_overlay()
       Loading(load_progress) -> loading_overlay(load_progress)
-      Playing -> html.div([], [])
+      Playing(playing_info) -> game_overlay(playing_info)
     },
   ])
 }
@@ -109,6 +127,15 @@ fn loading_overlay(
       html.span([class("loading-text")], [
         html.text("Loading..."),
       ]),
+    ]),
+  ])
+}
+
+fn game_overlay(playing_info: PlayingInfo) -> Element(Msg) {
+  html.div([class("gui-wrapper")], [
+    html.span([], [html.text("Wave: " <> int.to_string(playing_info.wave))]),
+    html.span([], [
+      html.text("Enemies left: " <> int.to_string(playing_info.enemies)),
     ]),
   ])
 }
