@@ -9,7 +9,6 @@ import tiramisu/geometry
 import tiramisu/material
 import tiramisu/scene
 import tiramisu/transform
-import vec/vec2
 import vec/vec3
 
 // sprite for player
@@ -71,6 +70,7 @@ pub type PlayerPoint {
 }
 
 pub fn get_points(model: PlayerModel) -> List(PlayerPoint) {
+  // hardcoded 5 points of the star
   let points = [
     PlayerPoint(-0.05 *. size, 0.47 *. size, -0.24),
     PlayerPoint(0.45 *. size, 0.21 *. size, 1.17),

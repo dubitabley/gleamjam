@@ -9,6 +9,8 @@ import tiramisu/scene
 import tiramisu/transform
 import vec/vec3
 
+const shot_asset: String = "shot.webp"
+
 pub type ShotModel {
   ShotModel(shots: List(Shot))
 }
@@ -24,8 +26,8 @@ pub fn init() -> ShotModel {
 pub fn tick(model: ShotModel) -> ShotModel {
   ShotModel(
     list.map(model.shots, fn(shot) {
-      let x = shot.x +. maths.sin(shot.direction)
-      let y = shot.y +. maths.cos(shot.direction)
+      let x = shot.x +. 5.0 *. maths.sin(shot.direction)
+      let y = shot.y +. 5.0 *. maths.cos(shot.direction)
       Shot(x, y, shot.direction)
     }),
   )

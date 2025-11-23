@@ -1,153 +1,152 @@
-/// 2D Game Example - Orthographic Camera
-import enemy
+import game
 import gleam/float
 import gleam/option
-import player
-import shot
+import lustre
+import lustre/attribute.{class}
+import lustre/effect as ui_effect
+import lustre/element.{type Element}
+import lustre/element/html
+import lustre/event
 import tiramisu
 import tiramisu/background
 import tiramisu/camera
 import tiramisu/effect.{type Effect}
-import tiramisu/input
-import tiramisu/light
 import tiramisu/scene
 import tiramisu/transform
-import tower
-import vec/vec2
+import tiramisu/ui
 import vec/vec3
 
+pub type State {
+  Menu
+  Loading
+  Playing
+}
+
 pub type Model {
-  Model(
-    time: Float,
-    player: player.PlayerModel,
-    tower: tower.TowerModel,
-    shots: shot.ShotModel,
-    camera_position: vec2.Vec2(Float),
-  )
+  Model(state: State)
 }
 
 pub type Msg {
-  Tick
-  PlayerMsg(player.PlayerMsg)
-  TowerMsg(tower.TowerMsg)
+  StartGameUi
 }
 
 pub fn main() -> Nil {
+  let assert Ok(_) =
+    lustre.application(init_ui, update_ui, view_ui)
+    |> lustre.start("#app", Nil)
   tiramisu.run(
     dimensions: option.None,
     background: background.Color(0x1a1a2e),
-    init:,
-    update:,
-    view:,
+    init: init,
+    update: update,
+    view: view,
   )
 }
 
-fn init(
-  _ctx: tiramisu.Context(String),
-) -> #(Model, Effect(Msg), option.Option(_)) {
-  let #(player_model, player_effect) = player.init()
-  let player_effect = effect.map(player_effect, fn(msg) { PlayerMsg(msg) })
-  let #(tower_model, tower_effect) = tower.init()
-  let tower_effect = effect.map(tower_effect, fn(msg) { TowerMsg(msg) })
-
-  let shot_model = shot.init()
-
-  #(
-    Model(
-      time: 0.0,
-      player: player_model,
-      tower: tower_model,
-      camera_position: vec2.Vec2(0.0, 0.0),
-      shots: shot_model,
-    ),
-    effect.batch([effect.tick(Tick), player_effect, tower_effect]),
-    option.None,
-  )
+fn init_ui(_flags) {
+  #(Model(Menu), ui.register_lustre())
 }
 
-fn update(
-  model: Model,
-  msg: Msg,
-  ctx: tiramisu.Context(String),
-) -> #(Model, Effect(Msg), option.Option(_)) {
-  // handle input to move player around
-  let up = input.is_key_pressed(ctx.input, input.KeyS)
-  let down = input.is_key_pressed(ctx.input, input.KeyW)
-  let left = input.is_key_pressed(ctx.input, input.KeyA)
-  let right = input.is_key_pressed(ctx.input, input.KeyD)
-
-  let player_movement = player.Keys(up, down, left, right)
-  let player_model = player.move(model.player, player_movement)
-  let model =
-    Model(
-      ..model,
-      player: player_model,
-      camera_position: vec2.Vec2(player_model.x, player_model.y),
+fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
+  case model.state, msg {
+    Menu, StartGameUi -> #(
+      Model(state: Playing),
+      ui.dispatch_to_tiramisu(StartGame),
     )
-
-  let shoot = input.is_key_just_pressed(ctx.input, input.Space)
-  let shot_model = case shoot {
-    True -> {
-      shot.create_shots(model.shots, player.get_points(model.player))
-    }
-    False -> model.shots
+    _, StartGameUi -> #(model, ui_effect.none())
   }
-  let model = Model(..model, shots: shot_model)
+}
 
-  let #(model, effect) = case msg {
-    Tick -> {
-      let new_time = model.time +. ctx.delta_time /. 1000.0
-      // tick things that need it
-      let shot_model = shot.tick(model.shots)
+fn view_ui(model: Model) -> Element(Msg) {
+  html.div([class("overlay")], [
+    case model.state {
+      Menu -> menu_overlay()
+      Loading -> html.div([], [])
+      Playing -> html.div([], [])
+    },
+  ])
+}
 
-      #(Model(..model, time: new_time, shots: shot_model), effect.tick(Tick))
+fn menu_overlay() -> Element(Msg) {
+  html.div([class("menu-wrapper")], [
+    html.div([class("lucy-wrapper")], [
+      html.img([class("lucy-menu"), attribute.src("lucy.webp")]),
+    ]),
+    html.div([class("menu")], [
+      html.button([class("menu-button"), event.on_click(StartGameUi)], [
+        html.text("Start Game"),
+      ]),
+    ]),
+  ])
+}
+
+pub type GameModel {
+  GameModel(state: GameState)
+}
+
+pub type GameState {
+  GameMenu
+  GamePlaying(game.Model)
+}
+
+pub type GameMsg {
+  StartGame
+  GameMsg(game.Msg)
+}
+
+pub fn init(
+  _ctx: tiramisu.Context(String),
+) -> #(GameModel, Effect(GameMsg), option.Option(_)) {
+  #(GameModel(GameMenu), effect.none(), option.None)
+}
+
+pub fn update(
+  model: GameModel,
+  msg: GameMsg,
+  ctx: tiramisu.Context(String),
+) -> #(GameModel, Effect(GameMsg), option.Option(_)) {
+  let #(model, effect) = case model.state, msg {
+    GameMenu, StartGame -> {
+      let #(game_model, game_effect, _physics) = game.init(ctx)
+      let effect = effect.map(game_effect, fn(e) { GameMsg(e) })
+      #(GameModel(GamePlaying(game_model)), effect)
     }
-    PlayerMsg(msg) -> {
-      let #(player_model, player_effect) = player.update(model.player, msg)
-      let player_effect = effect.map(player_effect, fn(msg) { PlayerMsg(msg) })
-      #(Model(..model, player: player_model), player_effect)
+    GamePlaying(game_model), GameMsg(msg) -> {
+      let #(game_model, game_effect, _physics) =
+        game.update(game_model, msg, ctx)
+      let effect = effect.map(game_effect, fn(e) { GameMsg(e) })
+      #(GameModel(GamePlaying(game_model)), effect)
     }
-    TowerMsg(msg) -> {
-      let #(tower_model, tower_effect) = tower.update(model.tower, msg)
-      let tower_effect = effect.map(tower_effect, fn(msg) { TowerMsg(msg) })
-      #(Model(..model, tower: tower_model), tower_effect)
-    }
+    _, StartGame | _, GameMsg(_) -> #(model, effect.none())
   }
 
   #(model, effect, option.None)
 }
 
-fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {
-  let cam =
-    camera.camera_2d(
-      width: float.round(ctx.canvas_width),
-      height: float.round(ctx.canvas_height),
-    )
+pub fn view(
+  model: GameModel,
+  ctx: tiramisu.Context(String),
+) -> scene.Node(String) {
+  case model.state {
+    GameMenu -> {
+      let cam =
+        camera.camera_2d(
+          width: float.round(ctx.canvas_width),
+          height: float.round(ctx.canvas_height),
+        )
+      scene.empty(id: "Scene", transform: transform.identity, children: [
+        scene.camera(
+          id: "camera",
+          camera: cam,
+          transform: transform.at(position: vec3.Vec3(0.0, 0.0, 20.0)),
+          look_at: option.None,
+          active: True,
+          viewport: option.None,
+          postprocessing: option.None,
+        ),
+      ])
+    }
 
-  scene.empty(id: "Scene", transform: transform.identity, children: [
-    scene.camera(
-      id: "camera",
-      camera: cam,
-      transform: transform.at(position: vec3.Vec3(
-        model.camera_position.x,
-        model.camera_position.y,
-        20.0,
-      )),
-      look_at: option.None,
-      active: True,
-      viewport: option.None,
-      postprocessing: option.None,
-    ),
-    scene.light(
-      id: "ambient",
-      light: {
-        let assert Ok(light) = light.ambient(color: 0xffffff, intensity: 1.0)
-        light
-      },
-      transform: transform.identity,
-    ),
-    player.view(model.player),
-    tower.view(model.tower),
-    shot.view(model.shots),
-  ])
+    GamePlaying(game_model) -> game.view(game_model, ctx)
+  }
 }
