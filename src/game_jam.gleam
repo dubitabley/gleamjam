@@ -1,6 +1,7 @@
 import game
 import gleam/float
 import gleam/option
+import loader
 import lustre
 import lustre/attribute.{class}
 import lustre/effect as ui_effect
@@ -8,6 +9,7 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 import tiramisu
+import tiramisu/asset
 import tiramisu/background
 import tiramisu/camera
 import tiramisu/effect.{type Effect}
@@ -18,7 +20,7 @@ import vec/vec3
 
 pub type State {
   Menu
-  Loading
+  Loading(option.Option(asset.LoadProgress))
   Playing
 }
 
@@ -27,7 +29,8 @@ pub type Model {
 }
 
 pub type Msg {
-  StartGameUi
+  StartLoad
+  LoadAssetInfo(loader.LoadState)
 }
 
 pub fn main() -> Nil {
@@ -49,11 +52,25 @@ fn init_ui(_flags) {
 
 fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
   case model.state, msg {
-    Menu, StartGameUi -> #(
-      Model(state: Playing),
-      ui.dispatch_to_tiramisu(StartGame),
-    )
-    _, StartGameUi -> #(model, ui_effect.none())
+    Menu, StartLoad -> {
+      let load_effect =
+        loader.load_assets()
+        |> ui_effect.map(fn(load_info) { LoadAssetInfo(load_info) })
+      #(Model(state: Loading(option.None)), load_effect)
+    }
+    _, LoadAssetInfo(load_state) -> {
+      case load_state {
+        loader.LoadProgress(load_progress) -> #(
+          Model(state: Loading(option.Some(load_progress))),
+          ui_effect.none(),
+        )
+        loader.AssetsLoaded(load_results) -> #(
+          Model(state: Playing),
+          ui.dispatch_to_tiramisu(StartGame(load_results.cache)),
+        )
+      }
+    }
+    _, StartLoad -> #(model, ui_effect.none())
   }
 }
 
@@ -61,7 +78,7 @@ fn view_ui(model: Model) -> Element(Msg) {
   html.div([class("overlay")], [
     case model.state {
       Menu -> menu_overlay()
-      Loading -> html.div([], [])
+      Loading(load_progress) -> loading_overlay(load_progress)
       Playing -> html.div([], [])
     },
   ])
@@ -73,8 +90,23 @@ fn menu_overlay() -> Element(Msg) {
       html.img([class("lucy-menu"), attribute.src("lucy.webp")]),
     ]),
     html.div([class("menu")], [
-      html.button([class("menu-button"), event.on_click(StartGameUi)], [
+      html.button([class("menu-button"), event.on_click(StartLoad)], [
         html.text("Start Game"),
+      ]),
+    ]),
+  ])
+}
+
+fn loading_overlay(
+  load_progress: option.Option(asset.LoadProgress),
+) -> Element(Msg) {
+  html.div([class("menu-wrapper")], [
+    html.div([class("lucy-wrapper")], [
+      html.img([class("lucy-menu"), attribute.src("lucy.webp")]),
+    ]),
+    html.div([class("menu")], [
+      html.span([class("loading-text")], [
+        html.text("Loading..."),
       ]),
     ]),
   ])
@@ -90,7 +122,7 @@ pub type GameState {
 }
 
 pub type GameMsg {
-  StartGame
+  StartGame(asset.AssetCache)
   GameMsg(game.Msg)
 }
 
@@ -106,8 +138,8 @@ pub fn update(
   ctx: tiramisu.Context(String),
 ) -> #(GameModel, Effect(GameMsg), option.Option(_)) {
   let #(model, effect) = case model.state, msg {
-    GameMenu, StartGame -> {
-      let #(game_model, game_effect, _physics) = game.init(ctx)
+    GameMenu, StartGame(asset_cache) -> {
+      let #(game_model, game_effect, _physics) = game.init(ctx, asset_cache)
       let effect = effect.map(game_effect, fn(e) { GameMsg(e) })
       #(GameModel(GamePlaying(game_model)), effect)
     }
@@ -117,7 +149,7 @@ pub fn update(
       let effect = effect.map(game_effect, fn(e) { GameMsg(e) })
       #(GameModel(GamePlaying(game_model)), effect)
     }
-    _, StartGame | _, GameMsg(_) -> #(model, effect.none())
+    _, StartGame(_) | _, GameMsg(_) -> #(model, effect.none())
   }
 
   #(model, effect, option.None)

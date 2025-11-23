@@ -3,6 +3,7 @@ import gleam/option
 import player
 import shot
 import tiramisu
+import tiramisu/asset
 import tiramisu/camera
 import tiramisu/effect.{type Effect}
 import tiramisu/input
@@ -20,22 +21,20 @@ pub type Model {
     tower: tower.TowerModel,
     shots: shot.ShotModel,
     camera_position: vec2.Vec2(Float),
+    asset_cache: asset.AssetCache,
   )
 }
 
 pub type Msg {
   Tick
-  PlayerMsg(player.PlayerMsg)
-  TowerMsg(tower.TowerMsg)
 }
 
 pub fn init(
   _ctx: tiramisu.Context(String),
+  asset_cache: asset.AssetCache,
 ) -> #(Model, Effect(Msg), option.Option(_)) {
-  let #(player_model, player_effect) = player.init()
-  let player_effect = effect.map(player_effect, fn(msg) { PlayerMsg(msg) })
-  let #(tower_model, tower_effect) = tower.init()
-  let tower_effect = effect.map(tower_effect, fn(msg) { TowerMsg(msg) })
+  let player_model = player.init()
+  let tower_model = tower.init()
 
   let shot_model = shot.init()
 
@@ -46,8 +45,9 @@ pub fn init(
       tower: tower_model,
       camera_position: vec2.Vec2(0.0, 0.0),
       shots: shot_model,
+      asset_cache: asset_cache,
     ),
-    effect.batch([effect.tick(Tick), player_effect, tower_effect]),
+    effect.tick(Tick),
     option.None,
   )
 }
@@ -89,16 +89,6 @@ pub fn update(
 
       #(Model(..model, time: new_time, shots: shot_model), effect.tick(Tick))
     }
-    PlayerMsg(msg) -> {
-      let #(player_model, player_effect) = player.update(model.player, msg)
-      let player_effect = effect.map(player_effect, fn(msg) { PlayerMsg(msg) })
-      #(Model(..model, player: player_model), player_effect)
-    }
-    TowerMsg(msg) -> {
-      let #(tower_model, tower_effect) = tower.update(model.tower, msg)
-      let tower_effect = effect.map(tower_effect, fn(msg) { TowerMsg(msg) })
-      #(Model(..model, tower: tower_model), tower_effect)
-    }
   }
 
   #(model, effect, option.None)
@@ -133,8 +123,8 @@ pub fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {
       },
       transform: transform.identity,
     ),
-    player.view(model.player),
-    tower.view(model.tower),
+    player.view(model.player, model.asset_cache),
+    tower.view(model.tower, model.asset_cache),
     shot.view(model.shots),
   ])
 }

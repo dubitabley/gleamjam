@@ -1,46 +1,24 @@
 import gleam/int
-import gleam/io
-import gleam/javascript/promise
 import gleam/list
 import gleam/option
+import loader
 import tiramisu/asset
-import tiramisu/effect.{type Effect}
 import tiramisu/geometry
 import tiramisu/material
 import tiramisu/scene
 import tiramisu/transform
 import vec/vec3
 
-const diamond_asset: String = "diamond.webp"
-
 pub type TowerModel {
-  TowerModel(towers: List(Tower), texture: option.Option(asset.Texture))
+  TowerModel(towers: List(Tower))
 }
 
 pub type Tower {
   Tower(x: Float, y: Float, health: Int)
 }
 
-pub type TowerMsg {
-  TextureLoaded(asset.Texture)
-  ErrorMessage(String)
-}
-
-pub fn init() -> #(TowerModel, Effect(TowerMsg)) {
-  let load_texture_effect =
-    asset.load_texture(diamond_asset)
-    |> promise.map(fn(result) {
-      case result {
-        Ok(texture) -> TextureLoaded(texture)
-        Error(_) -> ErrorMessage("Couldn't load diamond texture")
-      }
-    })
-    |> effect.from_promise
-
-  #(
-    TowerModel(towers: generate_towers(), texture: option.None),
-    load_texture_effect,
-  )
+pub fn init() -> TowerModel {
+  TowerModel(towers: generate_towers())
 }
 
 const tower_dist: Float = 200.0
@@ -54,23 +32,7 @@ fn generate_towers() -> List(Tower) {
   ]
 }
 
-pub fn update(
-  model: TowerModel,
-  msg: TowerMsg,
-) -> #(TowerModel, Effect(TowerMsg)) {
-  case msg {
-    TextureLoaded(texture) -> #(
-      TowerModel(..model, texture: option.Some(texture)),
-      effect.none(),
-    )
-    ErrorMessage(error) -> {
-      io.print_error(error)
-      #(model, effect.none())
-    }
-  }
-}
-
-pub fn view(model: TowerModel) -> scene.Node(String) {
+pub fn view(model: TowerModel, asset_cache) -> scene.Node(String) {
   let assert Ok(sprite_geom) = geometry.plane(width: 100.0, height: 100.0)
   let assert Ok(sprite_mat) =
     material.basic(
@@ -78,7 +40,8 @@ pub fn view(model: TowerModel) -> scene.Node(String) {
       color: 0xffffff,
       transparent: True,
       opacity: 1.0,
-      map: model.texture,
+      map: asset.get_texture(asset_cache, loader.diamond_asset)
+        |> option.from_result,
     )
   let children =
     list.index_map(model.towers, fn(tower, index) {
