@@ -16,7 +16,7 @@ pub type ShotModel {
 }
 
 pub type Shot {
-  Shot(x: Float, y: Float, direction: Float)
+  Shot(x: Float, y: Float, direction: Float, rotation: Float)
 }
 
 pub fn init() -> ShotModel {
@@ -28,7 +28,8 @@ pub fn tick(model: ShotModel) -> ShotModel {
     list.map(model.shots, fn(shot) {
       let x = shot.x +. 10.0 *. maths.sin(shot.direction)
       let y = shot.y +. 10.0 *. maths.cos(shot.direction)
-      Shot(x, y, shot.direction)
+      let rotation = shot.rotation +. 0.2
+      Shot(x, y, shot.direction, rotation)
     }),
   )
 }
@@ -39,7 +40,7 @@ pub fn create_shots(
 ) -> ShotModel {
   let shots =
     points
-    |> list.map(fn(point) { Shot(point.x, point.y, point.direction) })
+    |> list.map(fn(point) { Shot(point.x, point.y, point.direction, 0.0) })
     |> list.append(model.shots)
 
   ShotModel(shots)
@@ -65,7 +66,8 @@ pub fn view(
         id: "shot" <> int.to_string(index),
         geometry: geometry,
         material: material,
-        transform: transform.at(position: vec3.Vec3(shot.x, shot.y, 0.2)),
+        transform: transform.at(position: vec3.Vec3(shot.x, shot.y, 0.2))
+          |> transform.with_euler_rotation(vec3.Vec3(0.0, 0.0, shot.rotation)),
         physics: option.None,
       )
     })
