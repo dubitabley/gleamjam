@@ -2,14 +2,14 @@ import gleam/int
 import gleam/list
 import gleam/option
 import gleam_community/maths
+import loader
 import player
+import tiramisu/asset
 import tiramisu/geometry
 import tiramisu/material
 import tiramisu/scene
 import tiramisu/transform
 import vec/vec3
-
-const shot_asset: String = "shot.webp"
 
 pub type ShotModel {
   ShotModel(shots: List(Shot))
@@ -45,14 +45,19 @@ pub fn create_shots(
   ShotModel(shots)
 }
 
-pub fn view(model: ShotModel) -> scene.Node(String) {
+pub fn view(
+  model: ShotModel,
+  asset_cache: asset.AssetCache,
+) -> scene.Node(String) {
   let assert Ok(geometry) = geometry.circle(radius: 10.0, segments: 10)
   let assert Ok(material) =
     material.basic(
       color: 0xff0000,
-      transparent: False,
+      transparent: True,
       opacity: 1.0,
-      map: option.None,
+      map: asset_cache
+        |> asset.get_texture(loader.shot_asset)
+        |> option.from_result(),
     )
   let shots =
     list.index_map(model.shots, fn(shot, index) {

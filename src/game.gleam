@@ -125,6 +125,6 @@ pub fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {
     ),
     player.view(model.player, model.asset_cache),
     tower.view(model.tower, model.asset_cache),
-    shot.view(model.shots),
+    shot.view(model.shots, model.asset_cache),
   ])
 }

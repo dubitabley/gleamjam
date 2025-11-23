@@ -10,6 +10,8 @@ pub const lucy_asset: String = "lucy.webp"
 
 pub const diamond_asset: String = "diamond.webp"
 
+pub const shot_asset: String = "shot.webp"
+
 pub type LoadState {
   LoadProgress(asset.LoadProgress)
   AssetsLoaded(asset.BatchLoadResult)
@@ -19,6 +21,7 @@ pub fn load_assets() -> Effect(LoadState) {
   let assets_to_load = [
     asset.TextureAsset(lucy_asset),
     asset.TextureAsset(diamond_asset),
+    asset.TextureAsset(shot_asset),
   ]
 
   effect.from(fn(dispatch) {
