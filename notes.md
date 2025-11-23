@@ -19,6 +19,7 @@ todo:
 - try out animations
 - potentially add way to rotate lucy
 - change background
+- add load progress to page
 - upgrades to tower?
 
 done:

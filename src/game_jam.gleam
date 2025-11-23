@@ -98,8 +98,9 @@ fn menu_overlay() -> Element(Msg) {
 }
 
 fn loading_overlay(
-  load_progress: option.Option(asset.LoadProgress),
+  _load_progress: option.Option(asset.LoadProgress),
 ) -> Element(Msg) {
+  // todo: use load progress here - too quick for me to notice this
   html.div([class("menu-wrapper")], [
     html.div([class("lucy-wrapper")], [
       html.img([class("lucy-menu"), attribute.src("lucy.webp")]),

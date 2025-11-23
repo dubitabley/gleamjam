@@ -1,3 +1,4 @@
+import enemy
 import gleam/float
 import gleam/option
 import player
@@ -20,6 +21,7 @@ pub type Model {
     player: player.PlayerModel,
     tower: tower.TowerModel,
     shots: shot.ShotModel,
+    enemies: enemy.EnemyModel,
     camera_position: vec2.Vec2(Float),
     asset_cache: asset.AssetCache,
   )
@@ -37,6 +39,8 @@ pub fn init(
   let tower_model = tower.init()
 
   let shot_model = shot.init()
+  let enemy_model = enemy.init()
+  let enemy_model = enemy.add_enemy(enemy_model)
 
   #(
     Model(
@@ -45,6 +49,7 @@ pub fn init(
       tower: tower_model,
       camera_position: vec2.Vec2(0.0, 0.0),
       shots: shot_model,
+      enemies: enemy_model,
       asset_cache: asset_cache,
     ),
     effect.tick(Tick),
@@ -126,5 +131,6 @@ pub fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {
     player.view(model.player, model.asset_cache),
     tower.view(model.tower, model.asset_cache),
     shot.view(model.shots, model.asset_cache),
+    enemy.view(model.enemies),
   ])
 }
