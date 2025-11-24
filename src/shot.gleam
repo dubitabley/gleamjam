@@ -16,7 +16,7 @@ pub type ShotModel {
 }
 
 pub type Shot {
-  Shot(x: Float, y: Float, direction: Float, rotation: Float)
+  Shot(x: Float, y: Float, direction: Float, rotation: Float, colour: Int)
 }
 
 pub fn init() -> ShotModel {
@@ -29,7 +29,7 @@ pub fn tick(model: ShotModel) -> ShotModel {
       let x = shot.x +. 10.0 *. maths.sin(shot.direction)
       let y = shot.y +. 10.0 *. maths.cos(shot.direction)
       let rotation = shot.rotation +. 0.2
-      Shot(x, y, shot.direction, rotation)
+      Shot(x, y, shot.direction, rotation, shot.colour)
     }),
   )
 }
@@ -37,10 +37,13 @@ pub fn tick(model: ShotModel) -> ShotModel {
 pub fn create_shots(
   model: ShotModel,
   points: List(player.PlayerPoint),
+  colour: Int,
 ) -> ShotModel {
   let shots =
     points
-    |> list.map(fn(point) { Shot(point.x, point.y, point.direction, 0.0) })
+    |> list.map(fn(point) {
+      Shot(point.x, point.y, point.direction, 0.0, colour)
+    })
     |> list.append(model.shots)
 
   ShotModel(shots)
@@ -51,17 +54,20 @@ pub fn view(
   asset_cache: asset.AssetCache,
 ) -> scene.Node(String) {
   let assert Ok(geometry) = geometry.circle(radius: 10.0, segments: 10)
-  let assert Ok(material) =
-    material.basic(
-      color: 0xff0000,
-      transparent: True,
-      opacity: 1.0,
-      map: asset_cache
-        |> asset.get_texture(loader.shot_asset)
-        |> option.from_result(),
-    )
+
+  let texture =
+    asset_cache
+    |> asset.get_texture(loader.shot_asset)
+    |> option.from_result()
   let shots =
     list.index_map(model.shots, fn(shot, index) {
+      let assert Ok(material) =
+        material.basic(
+          color: shot.colour,
+          transparent: True,
+          opacity: 1.0,
+          map: texture,
+        )
       scene.mesh(
         id: "shot" <> int.to_string(index),
         geometry: geometry,

@@ -15,7 +15,6 @@ Very much like elm in a lot of ways
 todo:
 
 - add enemies
-- add ui - waves and enemies and points
 - try out animations
 - potentially add way to rotate lucy
 - change background
@@ -27,3 +26,4 @@ done:
 
 - fix up texture loader
 - add main menu
+- add ui - waves and enemies

@@ -66,11 +66,10 @@ pub fn update(
 ) -> #(Model, Effect(Msg), option.Option(_)) {
   let #(model, effect) = case msg {
     Tick -> {
-      let new_time = model.time +. ctx.delta_time /. 1000.0
       // run the game loop
       let model = game_loop(model, ctx)
 
-      #(Model(..model, time: new_time), effect.tick(Tick))
+      #(model, effect.tick(Tick))
     }
     StartWave -> {
       let new_wave = model.wave + 1
@@ -92,19 +91,33 @@ fn game_loop(model: Model, ctx: tiramisu.Context(String)) -> Model {
   let player_movement = player.Keys(up, down, left, right)
   let player_model = player.move(model.player, player_movement)
 
-  let shoot = input.is_key_just_pressed(ctx.input, input.Space)
-  let shot_model = case shoot {
-    True -> {
-      shot.create_shots(model.shots, player.get_points(model.player))
+  let shoot = input.is_key_pressed(ctx.input, input.Space)
+  let #(shot_model, player_model) = case
+    shoot,
+    player.can_make_shot(player_model, model.time)
+  {
+    True, True -> {
+      let #(player_model, shot_colour) =
+        player.make_shot(player_model, model.time)
+      let shot_model =
+        shot.create_shots(
+          model.shots,
+          player.get_points(model.player),
+          shot_colour,
+        )
+      #(shot_model, player_model)
     }
-    False -> model.shots
+    _, _ -> #(model.shots, player_model)
   }
   let shot_model = shot.tick(shot_model)
+  let new_time = model.time +. ctx.delta_time /. 1000.0
+
   Model(
     ..model,
     player: player_model,
     camera_position: vec2.Vec2(player_model.x, player_model.y),
     shots: shot_model,
+    time: new_time,
   )
 }
 

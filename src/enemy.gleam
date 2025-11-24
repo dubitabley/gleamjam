@@ -1,9 +1,11 @@
+import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option
+import gleam/result
+import gleam_community/maths
 import threejs
 import tiramisu/asset
-import tiramisu/effect.{type Effect}
 import tiramisu/geometry
 import tiramisu/material
 import tiramisu/scene
@@ -16,17 +18,13 @@ pub type EnemyModel {
 }
 
 pub type Enemy {
-  Enemy(x: Float, y: Float, health: Int, texture: asset.Texture)
+  Enemy(x: Float, y: Float, health: Int, texture: asset.Texture, state: State)
 }
 
 pub type State {
-  Moving
-  Idle
+  Moving(x: Float, y: Float)
+  Idle(time: Int)
   Attacking
-}
-
-pub type EnemyMsg {
-  Tick
 }
 
 pub fn init() -> EnemyModel {
@@ -34,7 +32,7 @@ pub fn init() -> EnemyModel {
 }
 
 pub fn add_enemy(model: EnemyModel) -> EnemyModel {
-  let enemy = Enemy(0.0, -150.0, 100, generate_enemy_texture())
+  let enemy = Enemy(0.0, -150.0, 100, generate_enemy_texture(), Idle(1000))
   EnemyModel(list.append(model.enemies, [enemy]))
 }
 
@@ -55,15 +53,49 @@ fn random_rgba_colour() -> List(Int) {
   [int.random(256), int.random(256), int.random(256), alpha]
 }
 
-pub fn update(
-  model: EnemyModel,
-  msg: EnemyMsg,
-) -> #(EnemyModel, Effect(EnemyMsg)) {
-  case msg {
-    Tick -> {
-      #(model, effect.none())
-    }
-  }
+pub fn tick(model: EnemyModel) -> EnemyModel {
+  let new_enemies =
+    model.enemies
+    |> list.map(fn(enemy) {
+      case enemy.state {
+        Moving(x, y) -> {
+          let angle = maths.atan2(y -. enemy.y, x -. enemy.x)
+          let distance = hypot(y -. enemy.y, x -. enemy.x)
+          let move_speed = 1.0
+          case distance <=. move_speed {
+            True -> {
+              Enemy(..enemy, x: x, y: y)
+            }
+            False -> {
+              let new_x = move_speed *. maths.cos(angle)
+              let new_y = move_speed *. maths.sin(angle)
+              Enemy(..enemy, x: new_x, y: new_y)
+            }
+          }
+        }
+        Idle(time) -> {
+          let new_time = time - 1
+          case new_time <= 0 {
+            True -> {
+              let new_state = choose_state(enemy)
+              Enemy(..enemy, state: new_state)
+            }
+            False -> enemy
+          }
+        }
+        Attacking -> enemy
+      }
+    })
+  EnemyModel(enemies: new_enemies)
+}
+
+fn hypot(x: Float, y: Float) -> Float {
+  float.square_root(x *. x +. y *. y)
+  |> result.unwrap(0.0)
+}
+
+fn choose_state(enemy: Enemy) -> State {
+  todo
 }
 
 pub fn view(model: EnemyModel) -> scene.Node(String) {

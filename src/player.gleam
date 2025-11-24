@@ -12,8 +12,46 @@ import vec/vec3
 // consts
 const size: Float = 100.0
 
+// in seconds
+const shot_delay: Float = 0.3
+
 pub type PlayerModel {
-  PlayerModel(x: Float, y: Float)
+  PlayerModel(x: Float, y: Float, shot_time: Float, shot_colour: ShotColour)
+}
+
+// rainbow!
+pub type ShotColour {
+  Red
+  Orange
+  Yellow
+  Green
+  Blue
+  Indigo
+  Violet
+}
+
+fn shot_colour(shot_colour: ShotColour) -> Int {
+  case shot_colour {
+    Red -> 0xf43545
+    Orange -> 0xfa8901
+    Yellow -> 0xfad717
+    Green -> 0x00ba71
+    Blue -> 0x00c2de
+    Indigo -> 0x00418d
+    Violet -> 0x5f2879
+  }
+}
+
+fn next_shot_colour(shot_colour: ShotColour) -> ShotColour {
+  case shot_colour {
+    Red -> Orange
+    Orange -> Yellow
+    Yellow -> Green
+    Green -> Blue
+    Blue -> Indigo
+    Indigo -> Violet
+    Violet -> Red
+  }
 }
 
 pub type Movement {
@@ -21,17 +59,33 @@ pub type Movement {
 }
 
 pub fn init() -> PlayerModel {
-  PlayerModel(0.0, 0.0)
+  PlayerModel(0.0, 0.0, 0.0, Red)
 }
 
 pub fn move(model: PlayerModel, movement: Movement) -> PlayerModel {
   let x = add_input(model.x, movement.left, movement.right, 3.0)
   let y = add_input(model.y, movement.up, movement.down, 3.0)
-  PlayerModel(x: x, y: y)
+  PlayerModel(..model, x: x, y: y)
 }
 
 pub type PlayerPoint {
   PlayerPoint(x: Float, y: Float, direction: Float)
+}
+
+pub fn can_make_shot(model: PlayerModel, time: Float) -> Bool {
+  time >. model.shot_time +. shot_delay
+}
+
+pub fn make_shot(model: PlayerModel, time: Float) -> #(PlayerModel, Int) {
+  let colour = shot_colour(model.shot_colour)
+  #(
+    PlayerModel(
+      ..model,
+      shot_time: time,
+      shot_colour: next_shot_colour(model.shot_colour),
+    ),
+    colour,
+  )
 }
 
 pub fn get_points(model: PlayerModel) -> List(PlayerPoint) {
