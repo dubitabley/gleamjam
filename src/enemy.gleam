@@ -39,7 +39,7 @@ pub fn create_enemy(x: Float, y: Float) -> Enemy {
   Enemy(x, y, max_health, generate_enemy_texture(), Idle(1000))
 }
 
-pub fn delete_enemy(enemy: Enemy) -> Nil {
+pub fn dispose_enemy(enemy: Enemy) -> Nil {
   threejs.dispose_texture(enemy.texture)
 }
 

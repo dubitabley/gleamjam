@@ -203,7 +203,11 @@ fn check_collisions(model: Model) -> #(Model, Effect(Msg)) {
       let enemy = enemy.Enemy(..enemy, health: new_health)
       case new_health > 0 {
         True -> Ok(enemy)
-        False -> Error(0)
+        False -> {
+          // this just disposes of the texture and cleans it up
+          enemy.dispose_enemy(enemy)
+          Error(0)
+        }
         // filter_map really should use option instead of result
       }
     })
