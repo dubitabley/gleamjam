@@ -18,3 +18,12 @@ export function loadTextureFromData(data, width, height, format) {
 
 export const RGBFormat = () => THREE.RGBFormat;
 export const RGBAFormat = () => THREE.RGBAFormat;
+
+/**
+ * Dispose of texture when it's not longer used
+ * https://threejs.org/docs/#Texture.dispose
+ * @param {Texture} texture
+ */
+export function disposeTexture(texture) {
+    texture.dispose();
+}

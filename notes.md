@@ -20,10 +20,11 @@ todo:
 - change background
 - add load progress to page
 - upgrades to tower?
-- health bars
 
 done:
 
 - fix up texture loader
 - add main menu
 - add ui - waves and enemies
+- health bars
+- delete shots

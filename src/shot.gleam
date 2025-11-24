@@ -11,25 +11,39 @@ import tiramisu/scene
 import tiramisu/transform
 import vec/vec3
 
+// shots live for 3 seconds
+const shot_life_time = 3.0
+
+pub const size = 10.0
+
 pub type ShotModel {
   ShotModel(shots: List(Shot))
 }
 
 pub type Shot {
-  Shot(x: Float, y: Float, direction: Float, rotation: Float, colour: Int)
+  Shot(
+    x: Float,
+    y: Float,
+    direction: Float,
+    rotation: Float,
+    colour: Int,
+    start_time: Float,
+  )
 }
 
 pub fn init() -> ShotModel {
   ShotModel([])
 }
 
-pub fn tick(model: ShotModel) -> ShotModel {
+pub fn tick(model: ShotModel, time: Float) -> ShotModel {
   ShotModel(
-    list.map(model.shots, fn(shot) {
+    model.shots
+    |> list.filter(fn(shot) { shot.start_time +. shot_life_time >. time })
+    |> list.map(fn(shot) {
       let x = shot.x +. 10.0 *. maths.sin(shot.direction)
       let y = shot.y +. 10.0 *. maths.cos(shot.direction)
       let rotation = shot.rotation +. 0.2
-      Shot(x, y, shot.direction, rotation, shot.colour)
+      Shot(..shot, x: x, y: y, rotation: rotation)
     }),
   )
 }
@@ -38,11 +52,12 @@ pub fn create_shots(
   model: ShotModel,
   points: List(player.PlayerPoint),
   colour: Int,
+  time: Float,
 ) -> ShotModel {
   let shots =
     points
     |> list.map(fn(point) {
-      Shot(point.x, point.y, point.direction, 0.0, colour)
+      Shot(point.x, point.y, point.direction, 0.0, colour, time)
     })
     |> list.append(model.shots)
 
@@ -53,7 +68,7 @@ pub fn view(
   model: ShotModel,
   asset_cache: asset.AssetCache,
 ) -> scene.Node(String) {
-  let assert Ok(geometry) = geometry.circle(radius: 10.0, segments: 10)
+  let assert Ok(geometry) = geometry.circle(radius: size, segments: 10)
 
   let texture =
     asset_cache

@@ -15,6 +15,9 @@ fn rgb_format() -> Int
 @external(javascript, "./threejs.ffi.mjs", "RGBAFormat")
 fn rgba_format() -> Int
 
+@external(javascript, "./threejs.ffi.mjs", "disposeTexture")
+pub fn dispose_texture(texture: asset.Texture) -> Nil
+
 pub fn rgba_texture_from_uint_8_array(
   data: typed_array.Uint8Array,
   width: Int,

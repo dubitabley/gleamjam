@@ -135,7 +135,7 @@ fn game_overlay(playing_info: PlayingInfo) -> Element(Msg) {
   html.div([class("gui-wrapper")], [
     html.span([], [html.text("Wave: " <> int.to_string(playing_info.wave))]),
     html.span([], [
-      html.text("Enemies left: " <> int.to_string(playing_info.enemies)),
+      html.text("Enemies: " <> int.to_string(playing_info.enemies)),
     ]),
   ])
 }
@@ -170,6 +170,14 @@ pub fn update(
       let #(game_model, game_effect, _physics) = game.init(ctx, asset_cache)
       let effect = effect.map(game_effect, fn(e) { GameMsg(e) })
       #(GameModel(GamePlaying(game_model)), effect)
+    }
+    GamePlaying(_), GameMsg(game.UpdateGui(gui_info)) -> {
+      let playing_info = case gui_info {
+        game.NewWave(new_wave, enemy_count) ->
+          StartWaveUi(PlayingInfo(new_wave, enemy_count))
+        game.EnemiesAmount(enemy_count) -> ChangeEnemies(enemy_count)
+      }
+      #(model, ui.dispatch_to_lustre(playing_info))
     }
     GamePlaying(game_model), GameMsg(msg) -> {
       let #(game_model, game_effect, _physics) =

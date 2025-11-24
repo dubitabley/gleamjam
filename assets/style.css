@@ -18,6 +18,10 @@ button {
     background-color: var(--blue);
 }
 
+button:hover {
+    background-color: var(--pink-colour);
+}
+
 .menu-wrapper {
     display: flex;
     flex-direction: column;

@@ -12,8 +12,10 @@ import vec/vec3
 // consts
 const size: Float = 100.0
 
+const speed: Float = 10.0
+
 // in seconds
-const shot_delay: Float = 0.3
+const shot_delay: Float = 0.5
 
 pub type PlayerModel {
   PlayerModel(x: Float, y: Float, shot_time: Float, shot_colour: ShotColour)
@@ -63,8 +65,8 @@ pub fn init() -> PlayerModel {
 }
 
 pub fn move(model: PlayerModel, movement: Movement) -> PlayerModel {
-  let x = add_input(model.x, movement.left, movement.right, 3.0)
-  let y = add_input(model.y, movement.up, movement.down, 3.0)
+  let x = add_input(model.x, movement.left, movement.right, speed)
+  let y = add_input(model.y, movement.up, movement.down, speed)
   PlayerModel(..model, x: x, y: y)
 }
 
