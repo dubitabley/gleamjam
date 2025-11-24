@@ -210,12 +210,13 @@ fn check_collisions(model: Model) -> #(Model, Effect(Msg)) {
 
   let end_enemy_count = list.length(enemies)
 
-  let effect = case end_enemy_count != start_enemy_count {
-    True ->
+  let effect = case end_enemy_count != start_enemy_count, end_enemy_count == 0 {
+    True, True -> effect.from(fn(dispatch) { dispatch(StartWave) })
+    True, False ->
       effect.from(fn(dispatch) {
         dispatch(UpdateGui(EnemiesAmount(end_enemy_count)))
       })
-    False -> effect.none()
+    False, _ -> effect.none()
   }
 
   #(
