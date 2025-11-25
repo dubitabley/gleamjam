@@ -20,6 +20,7 @@ todo:
 - change background
 - add load progress to page
 - upgrades to tower?
+- sound effects
 
 done:
 

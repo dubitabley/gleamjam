@@ -34,9 +34,18 @@ pub type Model {
 }
 
 pub type Msg {
+  GameMsg(GameMsgType)
+  UpdateGui(UpdateGuiInfo)
+}
+
+pub type GameMsgType {
   Tick
   StartWave
-  UpdateGui(UpdateGuiInfo)
+  EnemyMsg(enemy.EnemyMsg)
+}
+
+fn map_game_msg(msg: GameMsgType) -> Msg {
+  GameMsg(msg)
 }
 
 pub type UpdateGuiInfo {
@@ -66,8 +75,8 @@ pub fn init(
       wave: 0,
     ),
     effect.batch([
-      effect.tick(Tick),
-      effect.from(fn(dispatch) { dispatch(StartWave) }),
+      effect.tick(Tick) |> effect.map(map_game_msg),
+      effect.from(fn(dispatch) { dispatch(StartWave |> map_game_msg) }),
     ]),
     option.None,
   )
@@ -75,20 +84,21 @@ pub fn init(
 
 pub fn update(
   model: Model,
-  msg: Msg,
+  msg: GameMsgType,
   ctx: tiramisu.Context(String),
 ) -> #(Model, Effect(Msg), option.Option(_)) {
   let #(model, effect) = case msg {
     Tick -> {
       // run the game loop
       let #(model, effect) = game_loop(model, ctx)
+      let tick_effect = effect.tick(Tick) |> effect.map(map_game_msg)
 
-      #(model, effect.batch([effect.tick(Tick), effect]))
+      #(model, effect.batch([tick_effect, effect]))
     }
     StartWave -> {
       let new_wave = model.wave + 1
       // add enemies as appropriate
-      let enemy_model = start_wave(new_wave)
+      let enemy_model = start_wave(new_wave, model.time)
       // update gui
       let enemy_count = list.length(enemy_model.enemies)
       let wave_info = NewWave(new_wave, enemy_count)
@@ -97,20 +107,32 @@ pub fn update(
         effect.from(fn(dispatch) { dispatch(UpdateGui(wave_info)) }),
       )
     }
-    // this one gets handled
-    UpdateGui(_) -> #(model, effect.none())
+    EnemyMsg(msg) -> {
+      case msg {
+        enemy.CreateShot(point) -> {
+          let shot_model =
+            shot.create_enemy_shot(
+              model.shots,
+              point,
+              enemy.create_shot_texture(),
+              model.time,
+            )
+          #(Model(..model, shots: shot_model), effect.none())
+        }
+      }
+    }
   }
 
   #(model, effect, option.None)
 }
 
-fn start_wave(wave_num: Int) -> enemy.EnemyModel {
+fn start_wave(wave_num: Int, time: Float) -> enemy.EnemyModel {
   let enemy_count = wave_num * wave_num
   let new_enemies =
     list.range(0, enemy_count - 1)
     |> list.map(fn(index) {
       let #(x, y) = get_enemy_position(index, enemy_count)
-      enemy.create_enemy(x, y)
+      enemy.create_enemy(x, y, time)
     })
   enemy.EnemyModel(enemies: new_enemies)
 }
@@ -145,7 +167,7 @@ fn game_loop(
       let #(player_model, shot_colour) =
         player.make_shot(player_model, model.time)
       let shot_model =
-        shot.create_shots(
+        shot.create_player_shots(
           model.shots,
           player.get_points(model.player),
           shot_colour,
@@ -156,18 +178,24 @@ fn game_loop(
     _, _ -> #(model.shots, player_model)
   }
   let shot_model = shot.tick(shot_model, model.time)
+  let #(enemy_model, enemy_effect) =
+    enemy.tick(model.enemies, model.tower, model.player, model.time)
+  let enemy_effect =
+    enemy_effect
+    |> effect.map(fn(enemy_msg) { GameMsg(EnemyMsg(enemy_msg)) })
   let new_time = model.time +. ctx.delta_time /. 1000.0
 
   let model =
     Model(
       ..model,
+      enemies: enemy_model,
       player: player_model,
       camera_position: vec2.Vec2(player_model.x, player_model.y),
       shots: shot_model,
       time: new_time,
     )
   let #(model, effect) = check_collisions(model)
-  #(model, effect)
+  #(model, effect.batch([enemy_effect, effect]))
 }
 
 // performs collision checks between shots, enemies and towers
@@ -215,7 +243,8 @@ fn check_collisions(model: Model) -> #(Model, Effect(Msg)) {
   let end_enemy_count = list.length(enemies)
 
   let effect = case end_enemy_count != start_enemy_count, end_enemy_count == 0 {
-    True, True -> effect.from(fn(dispatch) { dispatch(StartWave) })
+    True, True ->
+      effect.from(fn(dispatch) { dispatch(StartWave |> map_game_msg) })
     True, False ->
       effect.from(fn(dispatch) {
         dispatch(UpdateGui(EnemiesAmount(end_enemy_count)))

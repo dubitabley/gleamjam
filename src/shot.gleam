@@ -3,12 +3,12 @@ import gleam/list
 import gleam/option
 import gleam_community/maths
 import loader
-import player
 import tiramisu/asset
 import tiramisu/geometry
 import tiramisu/material
 import tiramisu/scene
 import tiramisu/transform
+import utils
 import vec/vec3
 
 // shots live for 3 seconds
@@ -28,7 +28,13 @@ pub type Shot {
     rotation: Float,
     colour: Int,
     start_time: Float,
+    shot_type: ShotType,
   )
+}
+
+pub type ShotType {
+  Player
+  Enemy(asset.Texture)
 }
 
 pub fn init() -> ShotModel {
@@ -48,19 +54,31 @@ pub fn tick(model: ShotModel, time: Float) -> ShotModel {
   )
 }
 
-pub fn create_shots(
+pub fn create_player_shots(
   model: ShotModel,
-  points: List(player.PlayerPoint),
+  points: List(utils.PointWithDirection),
   colour: Int,
   time: Float,
 ) -> ShotModel {
   let shots =
     points
     |> list.map(fn(point) {
-      Shot(point.x, point.y, point.direction, 0.0, colour, time)
+      Shot(point.x, point.y, point.direction, 0.0, colour, time, Player)
     })
     |> list.append(model.shots)
 
+  ShotModel(shots)
+}
+
+pub fn create_enemy_shot(
+  model: ShotModel,
+  point: utils.PointWithDirection,
+  texture: asset.Texture,
+  time: Float,
+) {
+  let new_shot =
+    Shot(point.x, point.y, point.direction, 0.0, 0xffffff, time, Enemy(texture))
+  let shots = model.shots |> list.append([new_shot])
   ShotModel(shots)
 }
 

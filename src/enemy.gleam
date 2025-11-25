@@ -1,19 +1,27 @@
+import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option
 import gleam_community/maths
 import health_bar
+import player
 import threejs
 import tiramisu/asset
+import tiramisu/effect.{type Effect}
 import tiramisu/geometry
 import tiramisu/material
 import tiramisu/scene
 import tiramisu/transform
+import tower
 import typed_array
 import utils
 import vec/vec3
 
 const max_health = 10
+
+const shoot_delay = 2.0
+
+const idle_delay = 1.0
 
 pub const size = 50.0
 
@@ -25,18 +33,33 @@ pub type Enemy {
   Enemy(x: Float, y: Float, health: Int, texture: asset.Texture, state: State)
 }
 
+pub type EnemyMsg {
+  CreateShot(utils.PointWithDirection)
+}
+
 pub type State {
   Moving(x: Float, y: Float)
-  Idle(time: Int)
-  Attacking
+  Idle(start_time: Float, wait_time: Float)
+  Shooting(shoot_point: utils.PointWithDirection)
 }
 
 pub fn init() -> EnemyModel {
   EnemyModel([])
 }
 
-pub fn create_enemy(x: Float, y: Float) -> Enemy {
-  Enemy(x, y, max_health, generate_enemy_texture(), Idle(1000))
+pub fn create_enemy(x: Float, y: Float, start_time: Float) -> Enemy {
+  Enemy(
+    x,
+    y,
+    max_health,
+    generate_enemy_texture(),
+    Idle(start_time, idle_delay),
+  )
+}
+
+pub fn create_shot_texture() -> asset.Texture {
+  // todo: should this be different?
+  generate_enemy_texture()
 }
 
 pub fn dispose_enemy(enemy: Enemy) -> Nil {
@@ -60,44 +83,116 @@ fn random_rgba_colour() -> List(Int) {
   [int.random(256), int.random(256), int.random(256), alpha]
 }
 
-pub fn tick(model: EnemyModel) -> EnemyModel {
-  let new_enemies =
+pub fn tick(
+  model: EnemyModel,
+  towers: tower.TowerModel,
+  player: player.PlayerModel,
+  time: Float,
+) -> #(EnemyModel, Effect(EnemyMsg)) {
+  let #(new_enemies, effects) =
     model.enemies
     |> list.map(fn(enemy) {
       case enemy.state {
         Moving(x, y) -> {
           let angle = maths.atan2(y -. enemy.y, x -. enemy.x)
           let distance = utils.hypot(y -. enemy.y, x -. enemy.x)
-          let move_speed = 1.0
-          case distance <=. move_speed {
+          let move_speed = 2.0
+          let enemy = case distance <=. move_speed {
             True -> {
-              Enemy(..enemy, x: x, y: y)
+              let new_state = choose_state(enemy, towers, player, time)
+              Enemy(..enemy, x: x, y: y, state: new_state)
             }
             False -> {
-              let new_x = move_speed *. maths.cos(angle)
-              let new_y = move_speed *. maths.sin(angle)
+              let new_x = enemy.x +. move_speed *. maths.cos(angle)
+              let new_y = enemy.y +. move_speed *. maths.sin(angle)
               Enemy(..enemy, x: new_x, y: new_y)
             }
           }
+          #(enemy, effect.none())
         }
-        Idle(time) -> {
-          let new_time = time - 1
-          case new_time <= 0 {
+        Idle(start_time, wait_time) -> {
+          let enemy = case time >. start_time +. wait_time {
             True -> {
-              let new_state = choose_state(enemy)
+              let new_state = choose_state(enemy, towers, player, time)
               Enemy(..enemy, state: new_state)
             }
             False -> enemy
           }
+          #(enemy, effect.none())
         }
-        Attacking -> enemy
+        Shooting(shoot_point) -> {
+          let new_state = Idle(time, shoot_delay)
+          #(
+            Enemy(..enemy, state: new_state),
+            effect.from(fn(dispatch) { dispatch(CreateShot(shoot_point)) }),
+          )
+        }
       }
     })
-  EnemyModel(enemies: new_enemies)
+    |> list.unzip
+  let effect = effects |> effect.batch
+  #(EnemyModel(enemies: new_enemies), effect)
 }
 
-fn choose_state(enemy: Enemy) -> State {
-  todo
+const shoot_distance = 200.0
+
+// enemy logic - very rudimentary
+//
+// if within distance of player, shoot at them
+// if within distance of tower, shoot at that
+// else move towards nearest tower
+fn choose_state(
+  enemy: Enemy,
+  towers: tower.TowerModel,
+  player: player.PlayerModel,
+  time: Float,
+) -> State {
+  let distance_to_player = utils.hypot(enemy.y -. player.y, enemy.x -. player.x)
+  case distance_to_player <. shoot_distance {
+    True -> {
+      let angle = maths.atan2(enemy.y -. player.y, enemy.x -. player.x)
+      let shoot_point = utils.PointWithDirection(player.x, player.y, angle)
+      Shooting(shoot_point)
+    }
+    False -> {
+      let #(closest_tower, distance) =
+        towers.towers
+        |> list.map(fn(tower) {
+          #(tower, utils.hypot(enemy.y -. tower.y, enemy.x -. tower.x))
+        })
+        |> list.fold(#(option.None, 10_000_000.0), fn(accum, current) {
+          let #(best_tower, distance) = accum
+          let #(current_tower, current_distance) = current
+          case current_distance <. distance {
+            True -> #(option.Some(current_tower), current_distance)
+            False -> #(best_tower, distance)
+          }
+        })
+      case distance <. shoot_distance, closest_tower {
+        True, option.Some(tower) -> {
+          // shoot at closest tower
+          let angle = maths.atan2(enemy.y -. tower.y, enemy.x -. tower.x)
+          let shoot_point = utils.PointWithDirection(tower.x, tower.y, angle)
+          Shooting(shoot_point)
+        }
+        False, option.Some(tower) -> {
+          // move towards closest tower
+          let angle =
+            maths.atan2(enemy.y -. tower.y, enemy.x -. tower.x)
+            +. float.random()
+            *. 0.2
+
+          let move_distance = float.random() *. 100.0 +. 100.0
+
+          let new_x = move_distance *. maths.cos(angle)
+          let new_y = move_distance *. maths.sin(angle)
+
+          Moving(x: new_x, y: new_y)
+        }
+        _, option.None -> Idle(time, idle_delay)
+      }
+    }
+  }
 }
 
 pub fn view(model: EnemyModel) -> scene.Node(String) {

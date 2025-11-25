@@ -179,7 +179,7 @@ pub fn update(
       }
       #(model, ui.dispatch_to_lustre(playing_info))
     }
-    GamePlaying(game_model), GameMsg(msg) -> {
+    GamePlaying(game_model), GameMsg(game.GameMsg(msg)) -> {
       let #(game_model, game_effect, _physics) =
         game.update(game_model, msg, ctx)
       let effect = effect.map(game_effect, fn(e) { GameMsg(e) })

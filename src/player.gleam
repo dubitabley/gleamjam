@@ -7,6 +7,7 @@ import tiramisu/geometry
 import tiramisu/material
 import tiramisu/scene
 import tiramisu/transform
+import utils
 import vec/vec3
 
 // consts
@@ -70,10 +71,6 @@ pub fn move(model: PlayerModel, movement: Movement) -> PlayerModel {
   PlayerModel(..model, x: x, y: y)
 }
 
-pub type PlayerPoint {
-  PlayerPoint(x: Float, y: Float, direction: Float)
-}
-
 pub fn can_make_shot(model: PlayerModel, time: Float) -> Bool {
   time >. model.shot_time +. shot_delay
 }
@@ -90,20 +87,24 @@ pub fn make_shot(model: PlayerModel, time: Float) -> #(PlayerModel, Int) {
   )
 }
 
-pub fn get_points(model: PlayerModel) -> List(PlayerPoint) {
+pub fn get_points(model: PlayerModel) -> List(utils.PointWithDirection) {
   // hardcoded 5 points of the star
   let points = [
-    PlayerPoint(-0.05 *. size, 0.47 *. size, -0.24),
-    PlayerPoint(0.45 *. size, 0.21 *. size, 1.17),
-    PlayerPoint(0.36 *. size, -0.39 *. size, 2.36),
-    PlayerPoint(-0.18 *. size, -0.47 *. size, -2.5),
-    PlayerPoint(-0.45 *. size, 0.05 *. size, -1.42),
+    utils.PointWithDirection(-0.05 *. size, 0.47 *. size, -0.24),
+    utils.PointWithDirection(0.45 *. size, 0.21 *. size, 1.17),
+    utils.PointWithDirection(0.36 *. size, -0.39 *. size, 2.36),
+    utils.PointWithDirection(-0.18 *. size, -0.47 *. size, -2.5),
+    utils.PointWithDirection(-0.45 *. size, 0.05 *. size, -1.42),
   ]
   list.map(points, fn(x) { add_point(model.x, model.y, x) })
 }
 
-fn add_point(x: Float, y: Float, point: PlayerPoint) -> PlayerPoint {
-  PlayerPoint(point.x +. x, point.y +. y, point.direction)
+fn add_point(
+  x: Float,
+  y: Float,
+  point: utils.PointWithDirection,
+) -> utils.PointWithDirection {
+  utils.PointWithDirection(point.x +. x, point.y +. y, point.direction)
 }
 
 fn add_input(val: Float, neg: Bool, pos: Bool, offset: Float) -> Float {
