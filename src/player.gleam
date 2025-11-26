@@ -1,6 +1,7 @@
 // stuff for handling the player
 import gleam/list
 import gleam/option
+import health_bar
 import loader
 import tiramisu/asset
 import tiramisu/geometry
@@ -13,13 +14,21 @@ import vec/vec3
 // consts
 const size: Float = 100.0
 
+const max_health: Int = 100
+
 const speed: Float = 10.0
 
 // in seconds
 const shot_delay: Float = 0.5
 
 pub type PlayerModel {
-  PlayerModel(x: Float, y: Float, shot_time: Float, shot_colour: ShotColour)
+  PlayerModel(
+    x: Float,
+    y: Float,
+    health: Int,
+    shot_time: Float,
+    shot_colour: ShotColour,
+  )
 }
 
 // rainbow!
@@ -62,7 +71,7 @@ pub type Movement {
 }
 
 pub fn init() -> PlayerModel {
-  PlayerModel(0.0, 0.0, 0.0, Red)
+  PlayerModel(0.0, 0.0, max_health, 0.0, Red)
 }
 
 pub fn move(model: PlayerModel, movement: Movement) -> PlayerModel {
@@ -130,12 +139,24 @@ pub fn view(
         |> asset.get_texture(loader.lucy_asset)
         |> option.from_result(),
     )
-
-  scene.mesh(
-    id: "sprite",
-    geometry: sprite_geom,
-    material: sprite_mat,
-    transform: transform.at(position: vec3.Vec3(player.x, player.y, 1.0)),
-    physics: option.None,
+  scene.empty(
+    id: "PlayerGroup",
+    transform: transform.at(position: vec3.Vec3(player.x, player.y, 0.0)),
+    children: [
+      scene.mesh(
+        id: "Player",
+        geometry: sprite_geom,
+        material: sprite_mat,
+        transform: transform.identity,
+        physics: option.None,
+      ),
+      health_bar.view_health_bar(
+        id: "Player",
+        health: player.health,
+        max_health: max_health,
+        position: vec3.Vec3(1.0, 60.0, 1.0),
+        width: 20.0,
+      ),
+    ],
   )
 }

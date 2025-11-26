@@ -14,13 +14,13 @@ Very much like elm in a lot of ways
 
 todo:
 
-- add enemies
 - try out animations
 - potentially add way to rotate lucy
 - change background
 - add load progress to page
 - upgrades to tower?
 - sound effects
+- enemy shot collision
 
 done:
 
@@ -29,3 +29,5 @@ done:
 - add ui - waves and enemies
 - health bars
 - delete shots
+- add enemies
+- add player health
