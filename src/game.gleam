@@ -194,12 +194,68 @@ fn game_loop(
       shots: shot_model,
       time: new_time,
     )
-  let #(model, effect) = check_collisions(model)
-  #(model, effect.batch([enemy_effect, effect]))
+  let #(model, player_shot_effect) = check_player_shot_collisions(model)
+  let #(model, enemy_shot_effect) = check_enemy_shot_collisions(model)
+  #(model, effect.batch([enemy_effect, player_shot_effect, enemy_shot_effect]))
+}
+
+fn check_enemy_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
+  // get collisions up front
+  let tower_collisions =
+    model.shots.shots
+    |> list.filter(fn(shot) {
+      case shot.shot_type {
+        shot.Enemy(_) -> True
+        _ -> False
+      }
+    })
+    |> list.map(fn(shot) {
+      model.tower.towers
+      |> list.filter(fn(tower) { check_collision_tower_shot(tower, shot) })
+      |> list.map(fn(tower) { #(tower, shot) })
+    })
+    |> list.flatten
+
+  // remove shots that collided
+  let shots =
+    model.shots.shots
+    |> list.filter(fn(shot) {
+      tower_collisions
+      |> list.map(utils.second_tuple)
+      |> list.contains(shot)
+      |> bool.negate
+    })
+
+  let towers =
+    model.tower.towers
+    |> list.filter_map(fn(tower) {
+      let collision_num =
+        tower_collisions
+        |> list.map(fn(collision) { collision.0 })
+        |> list.count(fn(coll) { coll == tower })
+      let new_health = tower.health - collision_num * 2
+      let tower = tower.Tower(..tower, health: new_health)
+      case new_health > 0 {
+        True -> Ok(tower)
+        False -> {
+          Error(0)
+        }
+        // filter_map really should use option instead of result
+      }
+    })
+
+  #(
+    Model(
+      ..model,
+      shots: shot.ShotModel(shots),
+      tower: tower.TowerModel(towers),
+    ),
+    effect.none(),
+  )
 }
 
 // performs collision checks between shots, enemies and towers
-fn check_collisions(model: Model) -> #(Model, Effect(Msg)) {
+fn check_player_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
   let collisions =
     model.shots.shots
     |> list.filter(fn(shot) {
@@ -210,16 +266,17 @@ fn check_collisions(model: Model) -> #(Model, Effect(Msg)) {
     })
     |> list.map(fn(shot) {
       model.enemies.enemies
-      |> list.filter(fn(enemy) { check_collision_shot_enemy(enemy, shot) })
+      |> list.filter(fn(enemy) { check_collision_enemy_shot(enemy, shot) })
       |> list.map(fn(enemy) { #(enemy, shot) })
     })
     |> list.flatten
 
+  // remove shots that collided
   let shots =
     model.shots.shots
     |> list.filter(fn(shot) {
       collisions
-      |> list.map(fn(collision) { collision.1 })
+      |> list.map(utils.second_tuple)
       |> list.contains(shot)
       |> bool.negate
     })
@@ -268,9 +325,17 @@ fn check_collisions(model: Model) -> #(Model, Effect(Msg)) {
   )
 }
 
-fn check_collision_shot_enemy(enemy: enemy.Enemy, shot: shot.Shot) -> Bool {
-  let distance = utils.hypot(shot.y -. enemy.y, shot.x -. enemy.x)
-  distance <. shot.size +. enemy.size
+fn check_collision_tower_shot(tower: tower.Tower, shot: shot.Shot) -> Bool {
+  let tower_rect =
+    utils.Rectangle(tower.x, tower.y, tower.tower_width, tower.tower_height)
+  let shot_circle = utils.Circle(shot.x, shot.y, shot.size)
+  utils.check_collision_circle_rect(shot_circle, tower_rect)
+}
+
+fn check_collision_enemy_shot(enemy: enemy.Enemy, shot: shot.Shot) -> Bool {
+  let enemy_circle = utils.Circle(enemy.x, enemy.y, enemy.size)
+  let shot_circle = utils.Circle(shot.x, shot.y, shot.size)
+  utils.check_collision_circles(enemy_circle, shot_circle)
 }
 
 pub fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {

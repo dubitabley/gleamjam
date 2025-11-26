@@ -12,6 +12,10 @@ import vec/vec3
 
 const max_health: Int = 100
 
+pub const tower_width: Float = 100.0
+
+pub const tower_height: Float = 100.0
+
 pub type TowerModel {
   TowerModel(towers: List(Tower))
 }
@@ -36,7 +40,8 @@ fn generate_towers() -> List(Tower) {
 }
 
 pub fn view(model: TowerModel, asset_cache) -> scene.Node(String) {
-  let assert Ok(sprite_geom) = geometry.plane(width: 100.0, height: 100.0)
+  let assert Ok(sprite_geom) =
+    geometry.plane(width: tower_width, height: tower_height)
   let assert Ok(sprite_mat) =
     material.basic(
       // diamond colour

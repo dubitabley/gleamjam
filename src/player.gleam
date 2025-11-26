@@ -155,7 +155,7 @@ pub fn view(
         health: player.health,
         max_health: max_health,
         position: vec3.Vec3(1.0, 60.0, 1.0),
-        width: 20.0,
+        width: 15.0,
       ),
     ],
   )
