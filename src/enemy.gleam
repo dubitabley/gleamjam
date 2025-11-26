@@ -150,8 +150,9 @@ fn choose_state(
   let distance_to_player = utils.hypot(enemy.y -. player.y, enemy.x -. player.x)
   case distance_to_player <. shoot_distance {
     True -> {
-      let angle = maths.atan2(enemy.y -. player.y, enemy.x -. player.x)
-      let shoot_point = utils.PointWithDirection(player.x, player.y, angle)
+      let angle = maths.atan2(player.y -. enemy.y, player.x -. enemy.x)
+      // +. { float.random() *. 0.1 -. 0.05 }
+      let shoot_point = utils.PointWithDirection(enemy.x, enemy.y, angle)
       Shooting(shoot_point)
     }
     False -> {
@@ -171,21 +172,20 @@ fn choose_state(
       case distance <. shoot_distance, closest_tower {
         True, option.Some(tower) -> {
           // shoot at closest tower
-          let angle = maths.atan2(enemy.y -. tower.y, enemy.x -. tower.x)
-          let shoot_point = utils.PointWithDirection(tower.x, tower.y, angle)
+          let angle = maths.atan2(tower.y -. enemy.y, tower.x -. enemy.x)
+          let shoot_point = utils.PointWithDirection(enemy.x, enemy.y, angle)
           Shooting(shoot_point)
         }
         False, option.Some(tower) -> {
           // move towards closest tower
           let angle =
-            maths.atan2(enemy.y -. tower.y, enemy.x -. tower.x)
-            +. float.random()
-            *. 0.2
+            maths.atan2(tower.y -. enemy.y, tower.x -. enemy.x)
+            +. { float.random() *. 1.0 -. 0.5 }
 
           let move_distance = float.random() *. 100.0 +. 100.0
 
-          let new_x = move_distance *. maths.cos(angle)
-          let new_y = move_distance *. maths.sin(angle)
+          let new_x = enemy.x +. move_distance *. maths.cos(angle)
+          let new_y = enemy.y +. move_distance *. maths.sin(angle)
 
           Moving(x: new_x, y: new_y)
         }

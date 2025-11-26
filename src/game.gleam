@@ -202,6 +202,12 @@ fn game_loop(
 fn check_collisions(model: Model) -> #(Model, Effect(Msg)) {
   let collisions =
     model.shots.shots
+    |> list.filter(fn(shot) {
+      case shot.shot_type {
+        shot.Player -> True
+        _ -> False
+      }
+    })
     |> list.map(fn(shot) {
       model.enemies.enemies
       |> list.filter(fn(enemy) { check_collision_shot_enemy(enemy, shot) })

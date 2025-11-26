@@ -90,11 +90,11 @@ pub fn make_shot(model: PlayerModel, time: Float) -> #(PlayerModel, Int) {
 pub fn get_points(model: PlayerModel) -> List(utils.PointWithDirection) {
   // hardcoded 5 points of the star
   let points = [
-    utils.PointWithDirection(-0.05 *. size, 0.47 *. size, -0.24),
-    utils.PointWithDirection(0.45 *. size, 0.21 *. size, 1.17),
-    utils.PointWithDirection(0.36 *. size, -0.39 *. size, 2.36),
-    utils.PointWithDirection(-0.18 *. size, -0.47 *. size, -2.5),
-    utils.PointWithDirection(-0.45 *. size, 0.05 *. size, -1.42),
+    utils.PointWithDirection(-0.05 *. size, 0.47 *. size, 1.81),
+    utils.PointWithDirection(0.45 *. size, 0.21 *. size, 0.31),
+    utils.PointWithDirection(0.36 *. size, -0.39 *. size, -0.66),
+    utils.PointWithDirection(-0.18 *. size, -0.47 *. size, -2.03),
+    utils.PointWithDirection(-0.45 *. size, 0.05 *. size, -3.08),
   ]
   list.map(points, fn(x) { add_point(model.x, model.y, x) })
 }

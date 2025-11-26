@@ -46,8 +46,8 @@ pub fn tick(model: ShotModel, time: Float) -> ShotModel {
     model.shots
     |> list.filter(fn(shot) { shot.start_time +. shot_life_time >. time })
     |> list.map(fn(shot) {
-      let x = shot.x +. 10.0 *. maths.sin(shot.direction)
-      let y = shot.y +. 10.0 *. maths.cos(shot.direction)
+      let x = shot.x +. 10.0 *. maths.cos(shot.direction)
+      let y = shot.y +. 10.0 *. maths.sin(shot.direction)
       let rotation = shot.rotation +. 0.2
       Shot(..shot, x: x, y: y, rotation: rotation)
     }),
