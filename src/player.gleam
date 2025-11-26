@@ -12,7 +12,7 @@ import utils
 import vec/vec3
 
 // consts
-const size: Float = 100.0
+pub const size: Float = 100.0
 
 const max_health: Int = 100
 

@@ -203,12 +203,7 @@ fn check_enemy_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
   // get collisions up front
   let tower_collisions =
     model.shots.shots
-    |> list.filter(fn(shot) {
-      case shot.shot_type {
-        shot.Enemy(_) -> True
-        _ -> False
-      }
-    })
+    |> list.filter(shot.is_enemy)
     |> list.map(fn(shot) {
       model.tower.towers
       |> list.filter(fn(tower) { check_collision_tower_shot(tower, shot) })
@@ -244,9 +239,24 @@ fn check_enemy_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
       }
     })
 
+  let shots_player_collisions =
+    shots
+    |> list.filter(shot.is_enemy)
+    |> list.filter(fn(shot) { check_collision_player_shot(model.player, shot) })
+
+  // remove shots that collided
+  let shots =
+    shots
+    |> utils.list_filter(shots_player_collisions)
+
+  let player_health =
+    model.player.health - 2 * list.length(shots_player_collisions)
+  let player = player.PlayerModel(..model.player, health: player_health)
+
   #(
     Model(
       ..model,
+      player: player,
       shots: shot.ShotModel(shots),
       tower: tower.TowerModel(towers),
     ),
@@ -258,12 +268,7 @@ fn check_enemy_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
 fn check_player_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
   let collisions =
     model.shots.shots
-    |> list.filter(fn(shot) {
-      case shot.shot_type {
-        shot.Player -> True
-        _ -> False
-      }
-    })
+    |> list.filter(shot.is_player)
     |> list.map(fn(shot) {
       model.enemies.enemies
       |> list.filter(fn(enemy) { check_collision_enemy_shot(enemy, shot) })
@@ -336,6 +341,15 @@ fn check_collision_enemy_shot(enemy: enemy.Enemy, shot: shot.Shot) -> Bool {
   let enemy_circle = utils.Circle(enemy.x, enemy.y, enemy.size)
   let shot_circle = utils.Circle(shot.x, shot.y, shot.size)
   utils.check_collision_circles(enemy_circle, shot_circle)
+}
+
+fn check_collision_player_shot(
+  player: player.PlayerModel,
+  shot: shot.Shot,
+) -> Bool {
+  let player_circle = utils.Circle(player.x, player.y, player.size /. 2.0)
+  let shot_circle = utils.Circle(shot.x, shot.y, shot.size)
+  utils.check_collision_circles(player_circle, shot_circle)
 }
 
 pub fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {

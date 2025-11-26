@@ -1,4 +1,6 @@
+import gleam/bool
 import gleam/float
+import gleam/list
 import gleam/result
 
 pub fn hypot(x: Float, y: Float) -> Float {
@@ -12,6 +14,11 @@ pub type PointWithDirection {
 
 pub fn second_tuple(tuple: #(value1, value2)) -> value2 {
   tuple.1
+}
+
+/// returns a list of objects that exist in list but not in list2
+pub fn list_filter(list1: List(value1), list2: List(value1)) -> List(value1) {
+  list1 |> list.filter(fn(val) { list.contains(list2, val) |> bool.negate })
 }
 
 pub type Circle {

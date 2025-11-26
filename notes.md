@@ -20,7 +20,6 @@ todo:
 - add load progress to page
 - upgrades to tower?
 - sound effects
-- enemy shot collision
 
 done:
 
@@ -31,3 +30,4 @@ done:
 - delete shots
 - add enemies
 - add player health
+- enemy shot collision

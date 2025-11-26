@@ -38,6 +38,20 @@ pub type ShotType {
   Enemy(asset.Texture)
 }
 
+pub fn is_player(shot: Shot) -> Bool {
+  case shot.shot_type {
+    Player -> True
+    _ -> False
+  }
+}
+
+pub fn is_enemy(shot: Shot) -> Bool {
+  case shot.shot_type {
+    Enemy(_) -> True
+    _ -> False
+  }
+}
+
 pub fn init() -> ShotModel {
   ShotModel([])
 }
