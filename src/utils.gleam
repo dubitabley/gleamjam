@@ -64,3 +64,14 @@ pub fn check_collision_circle_rect(circle: Circle, rect: Rectangle) -> Bool {
     _, _ -> False
   }
 }
+
+pub fn check_collision_rect_rect(rect1: Rectangle, rect2: Rectangle) -> Bool {
+  let left_1 = rect1.x -. rect1.width /. 2.0
+  let top_1 = rect1.y -. rect1.height /. 2.0
+  let left_2 = rect2.x -. rect2.width /. 2.0
+  let top_2 = rect2.y -. rect2.height /. 2.0
+  left_1 <. left_2 +. rect2.width
+  && left_1 +. rect1.width >. left_2
+  && top_1 <. top_2 +. rect2.height
+  && top_1 +. rect1.height >. top_2
+}

@@ -12,6 +12,8 @@ pub const diamond_asset: String = "diamond.webp"
 
 pub const player_shot_asset: String = "shot.webp"
 
+pub const arial_font_asset: String = "fonts/arial_bold.json"
+
 pub type LoadState {
   LoadProgress(asset.LoadProgress)
   AssetsLoaded(asset.BatchLoadResult)
@@ -22,6 +24,7 @@ pub fn load_assets() -> Effect(LoadState) {
     asset.TextureAsset(lucy_asset),
     asset.TextureAsset(diamond_asset),
     asset.TextureAsset(player_shot_asset),
+    asset.FontAsset(arial_font_asset),
   ]
 
   effect.from(fn(dispatch) {

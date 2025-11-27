@@ -19,6 +19,7 @@ import tower
 import utils
 import vec/vec2
 import vec/vec3
+import world_ui
 
 pub type Model {
   Model(
@@ -30,6 +31,7 @@ pub type Model {
     camera_position: vec2.Vec2(Float),
     asset_cache: asset.AssetCache,
     wave_info: WaveInfo,
+    world_ui: world_ui.Model(GameMsgType),
   )
 }
 
@@ -80,6 +82,7 @@ pub fn init(
       enemies: enemy_model,
       asset_cache: asset_cache,
       wave_info: WaveEnd(0),
+      world_ui: world_ui.init(),
     ),
     effect.batch([
       effect.tick(Tick) |> effect.map(map_game_msg),
@@ -115,14 +118,32 @@ pub fn update(
       let enemy_count = list.length(enemy_model.enemies)
       let new_wave_info = NewWaveUi(new_wave, enemy_count)
       #(
-        Model(..model, enemies: enemy_model, wave_info: OngoingWave(new_wave)),
+        Model(
+          ..model,
+          enemies: enemy_model,
+          wave_info: OngoingWave(new_wave),
+          world_ui: world_ui.init(),
+        ),
         effect.from(fn(dispatch) { dispatch(UpdateGui(new_wave_info)) }),
       )
     }
     EndWave -> {
       let assert OngoingWave(current_wave) = model.wave_info
+      // add world ui button
+      let world_ui =
+        world_ui.Model([
+          world_ui.Button(
+            0.0,
+            0.0,
+            200.0,
+            100.0,
+            "Start Wave",
+            False,
+            StartWave,
+          ),
+        ])
       #(
-        Model(..model, wave_info: WaveEnd(current_wave)),
+        Model(..model, wave_info: WaveEnd(current_wave), world_ui: world_ui),
         effect.from(fn(dispatch) {
           dispatch(UpdateGui(EndWaveUi(current_wave)))
         }),
@@ -204,6 +225,17 @@ fn game_loop(
   let enemy_effect =
     enemy_effect
     |> effect.map(fn(enemy_msg) { GameMsg(EnemyMsg(enemy_msg)) })
+  let player_rect =
+    utils.Rectangle(player_model.x, player_model.y, player.size, player.size)
+  let world_ui = world_ui.check_player_collisions(model.world_ui, player_rect)
+  let interact = input.is_key_pressed(ctx.input, input.Enter)
+  let collision_effect =
+    case interact {
+      True -> world_ui.get_effect_collisions(world_ui)
+      False -> []
+    }
+    |> list.map(fn(msg) { effect.from(fn(dispatch) { dispatch(GameMsg(msg)) }) })
+    |> effect.batch
   let new_time = model.time +. ctx.delta_time /. 1000.0
 
   let model =
@@ -214,10 +246,19 @@ fn game_loop(
       camera_position: vec2.Vec2(player_model.x, player_model.y),
       shots: shot_model,
       time: new_time,
+      world_ui: world_ui,
     )
   let #(model, player_shot_effect) = check_player_shot_collisions(model)
   let #(model, enemy_shot_effect) = check_enemy_shot_collisions(model)
-  #(model, effect.batch([enemy_effect, player_shot_effect, enemy_shot_effect]))
+  #(
+    model,
+    effect.batch([
+      enemy_effect,
+      player_shot_effect,
+      enemy_shot_effect,
+      collision_effect,
+    ]),
+  )
 }
 
 fn check_enemy_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
@@ -406,5 +447,6 @@ pub fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {
     tower.view(model.tower, model.asset_cache),
     shot.view(model.shots, model.asset_cache),
     enemy.view(model.enemies),
+    world_ui.view(model.world_ui, model.asset_cache),
   ])
 }

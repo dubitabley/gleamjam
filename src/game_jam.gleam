@@ -87,10 +87,11 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
       Model(state: WaveComplete(wave_num)),
       ui_effect.none(),
     )
-    Playing(_, _), StartWaveUi(new_info) -> #(
-      Model(Playing(new_info, False)),
-      ui_effect.none(),
-    )
+    Playing(_, _), StartWaveUi(new_info)
+    | WaveComplete(_), StartWaveUi(new_info)
+    -> {
+      #(Model(Playing(new_info, False)), ui_effect.none())
+    }
     Playing(info, resuming), ChangeEnemies(enemy_num) -> #(
       Model(Playing(PlayingInfo(info.wave, enemy_num), resuming)),
       ui_effect.none(),
@@ -264,6 +265,9 @@ fn controls_overlay() -> Element(Msg) {
       html.br([]),
       html.div([], [
         html.text("Use WASD to move around, press space to fire at the enemies"),
+      ]),
+      html.div([], [
+        html.text("Use Enter to activate the buttons in world"),
       ]),
     ]),
   ])

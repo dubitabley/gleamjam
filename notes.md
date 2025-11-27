@@ -17,12 +17,11 @@ Very much like elm in a lot of ways
 - try out animations
 - potentially add way to rotate lucy
 - change background
-- add load progress to page
 - upgrades to tower?
 - sound effects
 - points
 - game over screen
-- wait on wave end
+- make towers look nicer
 
 done:
 
@@ -36,3 +35,5 @@ done:
 - enemy shot collision
 - pause
 - help button with controls
+- wait on wave end
+- add load progress to page
