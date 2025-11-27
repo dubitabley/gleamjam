@@ -82,6 +82,10 @@ pub fn init(
   )
 }
 
+pub fn resume() -> Effect(Msg) {
+  effect.tick(Tick) |> effect.map(map_game_msg)
+}
+
 pub fn update(
   model: Model,
   msg: GameMsgType,

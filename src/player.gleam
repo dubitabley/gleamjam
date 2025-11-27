@@ -16,7 +16,7 @@ pub const size: Float = 100.0
 
 const max_health: Int = 100
 
-const speed: Float = 10.0
+const speed: Float = 3.0
 
 // in seconds
 const shot_delay: Float = 0.5

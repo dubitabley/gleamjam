@@ -23,6 +23,8 @@ pub type State {
   Menu
   Loading(option.Option(asset.LoadProgress))
   Playing(PlayingInfo)
+  Paused(PlayingInfo)
+  // WaveComplete
 }
 
 pub type PlayingInfo {
@@ -38,6 +40,7 @@ pub type Msg {
   LoadAssetInfo(loader.LoadState)
   StartWaveUi(PlayingInfo)
   ChangeEnemies(Int)
+  TogglePause
 }
 
 pub fn main() -> Nil {
@@ -85,7 +88,15 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
       Model(Playing(PlayingInfo(info.wave, enemy_num))),
       ui_effect.none(),
     )
-    _, StartLoad | _, StartWaveUi(_) | _, ChangeEnemies(_) -> #(
+    Playing(info), TogglePause -> #(
+      Model(Paused(info)),
+      ui.dispatch_to_tiramisu(ToggleGamePause),
+    )
+    Paused(info), TogglePause -> #(
+      Model(Playing(info)),
+      ui.dispatch_to_tiramisu(ToggleGamePause),
+    )
+    _, StartLoad | _, StartWaveUi(_) | _, ChangeEnemies(_) | _, TogglePause -> #(
       model,
       ui_effect.none(),
     )
@@ -98,6 +109,7 @@ fn view_ui(model: Model) -> Element(Msg) {
       Menu -> menu_overlay()
       Loading(load_progress) -> loading_overlay(load_progress)
       Playing(playing_info) -> game_overlay(playing_info)
+      Paused(playing_info) -> paused_overlay(playing_info)
     },
   ])
 }
@@ -132,12 +144,32 @@ fn loading_overlay(
 }
 
 fn game_overlay(playing_info: PlayingInfo) -> Element(Msg) {
-  html.div([class("gui-wrapper")], [
+  html.div([], [game_info(playing_info), play_button(False)])
+}
+
+fn game_info(playing_info: PlayingInfo) -> Element(Msg) {
+  html.div([class("game-info-wrapper")], [
     html.span([], [html.text("Wave: " <> int.to_string(playing_info.wave))]),
     html.span([], [
       html.text("Enemies: " <> int.to_string(playing_info.enemies)),
     ]),
   ])
+}
+
+fn play_button(paused: Bool) -> Element(Msg) {
+  let button_text = case paused {
+    True -> "Resume"
+    False -> "Pause"
+  }
+  html.div([class("play-button-wrapper")], [
+    html.button([class("play-button"), event.on_click(TogglePause)], [
+      html.text(button_text),
+    ]),
+  ])
+}
+
+fn paused_overlay(playing_info: PlayingInfo) -> Element(Msg) {
+  html.div([], [game_info(playing_info), play_button(True)])
 }
 
 pub type GameModel {
@@ -147,11 +179,13 @@ pub type GameModel {
 pub type GameState {
   GameMenu
   GamePlaying(game.Model)
+  GamePaused(game.Model)
 }
 
 pub type GameMsg {
   StartGame(asset.AssetCache)
   GameMsg(game.Msg)
+  ToggleGamePause
 }
 
 pub fn init(
@@ -185,7 +219,19 @@ pub fn update(
       let effect = effect.map(game_effect, fn(e) { GameMsg(e) })
       #(GameModel(GamePlaying(game_model)), effect)
     }
-    _, StartGame(_) | _, GameMsg(_) -> #(model, effect.none())
+    GamePlaying(game_model), ToggleGamePause -> #(
+      GameModel(GamePaused(game_model)),
+      effect.none(),
+    )
+    GamePaused(game_model), ToggleGamePause -> {
+      let effect = game.resume()
+      let effect = effect.map(effect, fn(e) { GameMsg(e) })
+      #(GameModel(GamePlaying(game_model)), effect)
+    }
+    _, StartGame(_) | _, GameMsg(_) | _, ToggleGamePause -> #(
+      model,
+      effect.none(),
+    )
   }
 
   #(model, effect, option.None)
@@ -215,6 +261,7 @@ pub fn view(
       ])
     }
 
-    GamePlaying(game_model) -> game.view(game_model, ctx)
+    GamePlaying(game_model) | GamePaused(game_model) ->
+      game.view(game_model, ctx)
   }
 }

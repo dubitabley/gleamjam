@@ -12,7 +12,7 @@ Hitting https://github.com/gleam-lang/gleam/issues/5132 quite a bit
 
 Very much like elm in a lot of ways
 
-todo:
+## Todo
 
 - try out animations
 - potentially add way to rotate lucy
@@ -20,6 +20,10 @@ todo:
 - add load progress to page
 - upgrades to tower?
 - sound effects
+- points
+- game over screen
+- wait on wave end
+- help button with controls
 
 done:
 
@@ -31,3 +35,4 @@ done:
 - add enemies
 - add player health
 - enemy shot collision
+- pause
