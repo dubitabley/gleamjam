@@ -32,6 +32,7 @@ pub type Model {
     asset_cache: asset.AssetCache,
     wave_info: WaveInfo,
     world_ui: world_ui.Model(GameMsgType),
+    points: Int,
   )
 }
 
@@ -50,6 +51,7 @@ pub type GameMsgType {
   StartWave
   EndWave
   EnemyMsg(enemy.EnemyMsg)
+  AddPoints(point_num: Int)
 }
 
 fn map_game_msg(msg: GameMsgType) -> Msg {
@@ -60,6 +62,7 @@ pub type UpdateGuiInfo {
   EndWaveUi(wave_num: Int)
   NewWaveUi(wave: Int, enemy_count: Int)
   EnemiesAmount(enemy_count: Int)
+  UpdatePoints(point_num: Int)
 }
 
 pub fn init(
@@ -83,6 +86,7 @@ pub fn init(
       asset_cache: asset_cache,
       wave_info: WaveEnd(0),
       world_ui: world_ui.init(),
+      points: 0,
     ),
     effect.batch([
       effect.tick(Tick) |> effect.map(map_game_msg),
@@ -162,6 +166,15 @@ pub fn update(
           #(Model(..model, shots: shot_model), effect.none())
         }
       }
+    }
+    AddPoints(point_num) -> {
+      let new_point_num = model.points + point_num
+      #(
+        Model(..model, points: new_point_num),
+        effect.from(fn(dispatch) {
+          dispatch(UpdateGui(UpdatePoints(new_point_num)))
+        }),
+      )
     }
   }
 
@@ -372,14 +385,24 @@ fn check_player_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
 
   let end_enemy_count = list.length(enemies)
 
-  let effect = case end_enemy_count != start_enemy_count, end_enemy_count == 0 {
-    True, True ->
-      effect.from(fn(dispatch) { dispatch(EndWave |> map_game_msg) })
-    True, False ->
-      effect.from(fn(dispatch) {
-        dispatch(UpdateGui(EnemiesAmount(end_enemy_count)))
-      })
-    False, _ -> effect.none()
+  let effect = case start_enemy_count - end_enemy_count, end_enemy_count == 0 {
+    0, _ -> effect.none()
+    enemies_down, True ->
+      effect.batch([
+        effect.from(fn(dispatch) {
+          dispatch(AddPoints(enemies_down + 5) |> map_game_msg)
+        }),
+        effect.from(fn(dispatch) { dispatch(EndWave |> map_game_msg) }),
+      ])
+    enemies_down, False ->
+      effect.batch([
+        effect.from(fn(dispatch) {
+          dispatch(AddPoints(enemies_down) |> map_game_msg)
+        }),
+        effect.from(fn(dispatch) {
+          dispatch(UpdateGui(EnemiesAmount(end_enemy_count)))
+        }),
+      ])
   }
 
   #(

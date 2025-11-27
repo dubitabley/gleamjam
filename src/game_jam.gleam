@@ -23,9 +23,9 @@ import vec/vec3
 pub type State {
   Menu
   Loading(option.Option(asset.LoadProgress))
-  Playing(playing_info: PlayingInfo, resume: Bool)
-  Paused(PlayingInfo, controls_open: Bool)
-  WaveComplete(wave_num: Int)
+  Playing(playing_info: PlayingInfo, resume: Bool, points: Int)
+  Paused(PlayingInfo, controls_open: Bool, points: Int)
+  WaveComplete(wave_num: Int, points: Int)
 }
 
 pub type PlayingInfo {
@@ -44,6 +44,7 @@ pub type Msg {
   ChangeEnemies(Int)
   TogglePause
   ToggleControls
+  UpdatePointsUi(points: Int)
 }
 
 pub fn main() -> Nil {
@@ -78,34 +79,46 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
           ui_effect.none(),
         )
         loader.AssetsLoaded(load_results) -> #(
-          Model(state: Playing(PlayingInfo(0, 0), False)),
+          Model(state: Playing(PlayingInfo(0, 0), False, 0)),
           ui.dispatch_to_tiramisu(StartGame(load_results.cache)),
         )
       }
     }
-    Playing(_, _), WaveCompleteUi(wave_num) -> #(
-      Model(state: WaveComplete(wave_num)),
+    Playing(_, _, points), WaveCompleteUi(wave_num) -> #(
+      Model(state: WaveComplete(wave_num, points)),
       ui_effect.none(),
     )
-    Playing(_, _), StartWaveUi(new_info)
-    | WaveComplete(_), StartWaveUi(new_info)
+    Playing(_, _, points), StartWaveUi(new_info)
+    | WaveComplete(_, points), StartWaveUi(new_info)
     -> {
-      #(Model(Playing(new_info, False)), ui_effect.none())
+      #(Model(Playing(new_info, False, points)), ui_effect.none())
     }
-    Playing(info, resuming), ChangeEnemies(enemy_num) -> #(
-      Model(Playing(PlayingInfo(info.wave, enemy_num), resuming)),
+    Playing(info, resuming, points), ChangeEnemies(enemy_num) -> #(
+      Model(Playing(PlayingInfo(info.wave, enemy_num), resuming, points)),
       ui_effect.none(),
     )
-    Playing(info, _), TogglePause -> #(
-      Model(Paused(info, False)),
+    Playing(info, _, points), TogglePause -> #(
+      Model(Paused(info, False, points)),
       ui.dispatch_to_tiramisu(ToggleGamePause),
     )
-    Paused(info, _), TogglePause -> #(
-      Model(Playing(info, True)),
+    Paused(info, _, points), TogglePause -> #(
+      Model(Playing(info, True, points)),
       ui.dispatch_to_tiramisu(ToggleGamePause),
     )
-    Paused(info, controls_open), ToggleControls -> #(
-      Model(Paused(info, bool.negate(controls_open))),
+    Paused(info, controls_open, points), ToggleControls -> #(
+      Model(Paused(info, bool.negate(controls_open), points)),
+      ui_effect.none(),
+    )
+    Playing(info, resume, _), UpdatePointsUi(points) -> #(
+      Model(Playing(info, resume, points)),
+      ui_effect.none(),
+    )
+    Paused(info, controls_open, _), UpdatePointsUi(points) -> #(
+      Model(Paused(info, controls_open, points)),
+      ui_effect.none(),
+    )
+    WaveComplete(wave_num, _), UpdatePointsUi(points) -> #(
+      Model(WaveComplete(wave_num, points)),
       ui_effect.none(),
     )
     _, StartLoad
@@ -114,6 +127,7 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
     | _, TogglePause
     | _, WaveCompleteUi(_)
     | _, ToggleControls
+    | _, UpdatePointsUi(_)
     -> #(model, ui_effect.none())
   }
 }
@@ -123,10 +137,11 @@ fn view_ui(model: Model) -> Element(Msg) {
     case model.state {
       Menu -> menu_overlay()
       Loading(load_progress) -> loading_overlay(load_progress)
-      Playing(playing_info, resuming) -> game_overlay(playing_info, resuming)
-      Paused(playing_info, controls_open) ->
-        paused_overlay(playing_info, controls_open)
-      WaveComplete(wave_num) -> wave_over_overlay(wave_num)
+      Playing(playing_info, resuming, points) ->
+        game_overlay(playing_info, resuming, points)
+      Paused(playing_info, controls_open, points) ->
+        paused_overlay(playing_info, controls_open, points)
+      WaveComplete(wave_num, points) -> wave_over_overlay(wave_num, points)
     },
   ])
 }
@@ -160,13 +175,22 @@ fn loading_overlay(
   ])
 }
 
-fn game_overlay(playing_info: PlayingInfo, resuming: Bool) -> Element(Msg) {
+fn game_overlay(
+  playing_info: PlayingInfo,
+  resuming: Bool,
+  points: Int,
+) -> Element(Msg) {
   let children = case resuming {
-    True -> [game_info(playing_info), game_buttons(False, False)]
+    True -> [
+      game_info(playing_info),
+      game_buttons(False, False),
+      points_overlay(points),
+    ]
     False -> [
       game_info(playing_info),
       game_buttons(False, False),
       wave_start_overlay(playing_info.wave),
+      points_overlay(points),
     ]
   }
   html.div([], children)
@@ -214,6 +238,7 @@ fn play_button(paused: Bool) -> Element(Msg) {
 fn paused_overlay(
   playing_info: PlayingInfo,
   controls_open: Bool,
+  points: Int,
 ) -> Element(Msg) {
   let children = case controls_open {
     True -> [
@@ -221,18 +246,23 @@ fn paused_overlay(
       game_buttons(True, controls_open),
       pause_info_overlay(),
       controls_overlay(),
+      points_overlay(points),
     ]
     False -> [
       game_info(playing_info),
       game_buttons(True, controls_open),
       pause_info_overlay(),
+      points_overlay(points),
     ]
   }
   html.div([], children)
 }
 
-fn wave_over_overlay(wave_num: Int) -> Element(Msg) {
-  main_info_overlay("Completed wave " <> int.to_string(wave_num), True)
+fn wave_over_overlay(wave_num: Int, points: Int) -> Element(Msg) {
+  html.div([], [
+    main_info_overlay("Completed wave " <> int.to_string(wave_num), True),
+    points_overlay(points),
+  ])
 }
 
 fn wave_start_overlay(wave_num: Int) -> Element(Msg) {
@@ -270,6 +300,12 @@ fn controls_overlay() -> Element(Msg) {
         html.text("Use Enter to activate the buttons in world"),
       ]),
     ]),
+  ])
+}
+
+fn points_overlay(points: Int) -> Element(Msg) {
+  html.div([class("points-info-wrapper")], [
+    html.div([class("points")], [html.text("Points: " <> int.to_string(points))]),
   ])
 }
 
@@ -312,6 +348,7 @@ pub fn update(
           StartWaveUi(PlayingInfo(new_wave, enemy_count))
         game.EnemiesAmount(enemy_count) -> ChangeEnemies(enemy_count)
         game.EndWaveUi(wave_end) -> WaveCompleteUi(wave_end)
+        game.UpdatePoints(point_num) -> UpdatePointsUi(point_num)
       }
       #(model, ui.dispatch_to_lustre(playing_info))
     }
