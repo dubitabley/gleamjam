@@ -23,7 +23,6 @@ Very much like elm in a lot of ways
 - points
 - game over screen
 - wait on wave end
-- help button with controls
 
 done:
 
@@ -36,3 +35,4 @@ done:
 - add player health
 - enemy shot collision
 - pause
+- help button with controls

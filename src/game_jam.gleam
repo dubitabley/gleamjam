@@ -1,4 +1,5 @@
 import game
+import gleam/bool
 import gleam/float
 import gleam/int
 import gleam/option
@@ -22,9 +23,9 @@ import vec/vec3
 pub type State {
   Menu
   Loading(option.Option(asset.LoadProgress))
-  Playing(PlayingInfo)
-  Paused(PlayingInfo)
-  // WaveComplete
+  Playing(playing_info: PlayingInfo, resume: Bool)
+  Paused(PlayingInfo, controls_open: Bool)
+  WaveComplete(wave_num: Int)
 }
 
 pub type PlayingInfo {
@@ -38,9 +39,11 @@ pub type Model {
 pub type Msg {
   StartLoad
   LoadAssetInfo(loader.LoadState)
+  WaveCompleteUi(Int)
   StartWaveUi(PlayingInfo)
   ChangeEnemies(Int)
   TogglePause
+  ToggleControls
 }
 
 pub fn main() -> Nil {
@@ -75,31 +78,42 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
           ui_effect.none(),
         )
         loader.AssetsLoaded(load_results) -> #(
-          Model(state: Playing(PlayingInfo(0, 0))),
+          Model(state: Playing(PlayingInfo(0, 0), False)),
           ui.dispatch_to_tiramisu(StartGame(load_results.cache)),
         )
       }
     }
-    Playing(_), StartWaveUi(new_info) -> #(
-      Model(Playing(new_info)),
+    Playing(_, _), WaveCompleteUi(wave_num) -> #(
+      Model(state: WaveComplete(wave_num)),
       ui_effect.none(),
     )
-    Playing(info), ChangeEnemies(enemy_num) -> #(
-      Model(Playing(PlayingInfo(info.wave, enemy_num))),
+    Playing(_, _), StartWaveUi(new_info) -> #(
+      Model(Playing(new_info, False)),
       ui_effect.none(),
     )
-    Playing(info), TogglePause -> #(
-      Model(Paused(info)),
+    Playing(info, resuming), ChangeEnemies(enemy_num) -> #(
+      Model(Playing(PlayingInfo(info.wave, enemy_num), resuming)),
+      ui_effect.none(),
+    )
+    Playing(info, _), TogglePause -> #(
+      Model(Paused(info, False)),
       ui.dispatch_to_tiramisu(ToggleGamePause),
     )
-    Paused(info), TogglePause -> #(
-      Model(Playing(info)),
+    Paused(info, _), TogglePause -> #(
+      Model(Playing(info, True)),
       ui.dispatch_to_tiramisu(ToggleGamePause),
     )
-    _, StartLoad | _, StartWaveUi(_) | _, ChangeEnemies(_) | _, TogglePause -> #(
-      model,
+    Paused(info, controls_open), ToggleControls -> #(
+      Model(Paused(info, bool.negate(controls_open))),
       ui_effect.none(),
     )
+    _, StartLoad
+    | _, StartWaveUi(_)
+    | _, ChangeEnemies(_)
+    | _, TogglePause
+    | _, WaveCompleteUi(_)
+    | _, ToggleControls
+    -> #(model, ui_effect.none())
   }
 }
 
@@ -108,8 +122,10 @@ fn view_ui(model: Model) -> Element(Msg) {
     case model.state {
       Menu -> menu_overlay()
       Loading(load_progress) -> loading_overlay(load_progress)
-      Playing(playing_info) -> game_overlay(playing_info)
-      Paused(playing_info) -> paused_overlay(playing_info)
+      Playing(playing_info, resuming) -> game_overlay(playing_info, resuming)
+      Paused(playing_info, controls_open) ->
+        paused_overlay(playing_info, controls_open)
+      WaveComplete(wave_num) -> wave_over_overlay(wave_num)
     },
   ])
 }
@@ -143,8 +159,16 @@ fn loading_overlay(
   ])
 }
 
-fn game_overlay(playing_info: PlayingInfo) -> Element(Msg) {
-  html.div([], [game_info(playing_info), play_button(False)])
+fn game_overlay(playing_info: PlayingInfo, resuming: Bool) -> Element(Msg) {
+  let children = case resuming {
+    True -> [game_info(playing_info), game_buttons(False, False)]
+    False -> [
+      game_info(playing_info),
+      game_buttons(False, False),
+      wave_start_overlay(playing_info.wave),
+    ]
+  }
+  html.div([], children)
 }
 
 fn game_info(playing_info: PlayingInfo) -> Element(Msg) {
@@ -156,20 +180,93 @@ fn game_info(playing_info: PlayingInfo) -> Element(Msg) {
   ])
 }
 
+fn game_buttons(paused: Bool, controls_open: Bool) -> Element(Msg) {
+  let children = case paused {
+    True -> [play_button(paused), controls_button(controls_open)]
+    False -> [play_button(paused)]
+  }
+  html.div([class("game-button-wrapper")], children)
+}
+
+fn controls_button(controls_open: Bool) -> Element(Msg) {
+  let button_text = case controls_open {
+    True -> "Close Controls/Info"
+    False -> "Open Controls/Info"
+  }
+  html.button([class("game-button"), event.on_click(ToggleControls)], [
+    html.text(button_text),
+  ])
+}
+
 fn play_button(paused: Bool) -> Element(Msg) {
   let button_text = case paused {
     True -> "Resume"
     False -> "Pause"
   }
   html.div([class("play-button-wrapper")], [
-    html.button([class("play-button"), event.on_click(TogglePause)], [
+    html.button([class("game-button"), event.on_click(TogglePause)], [
       html.text(button_text),
     ]),
   ])
 }
 
-fn paused_overlay(playing_info: PlayingInfo) -> Element(Msg) {
-  html.div([], [game_info(playing_info), play_button(True)])
+fn paused_overlay(
+  playing_info: PlayingInfo,
+  controls_open: Bool,
+) -> Element(Msg) {
+  let children = case controls_open {
+    True -> [
+      game_info(playing_info),
+      game_buttons(True, controls_open),
+      pause_info_overlay(),
+      controls_overlay(),
+    ]
+    False -> [
+      game_info(playing_info),
+      game_buttons(True, controls_open),
+      pause_info_overlay(),
+    ]
+  }
+  html.div([], children)
+}
+
+fn wave_over_overlay(wave_num: Int) -> Element(Msg) {
+  main_info_overlay("Completed wave " <> int.to_string(wave_num), True)
+}
+
+fn wave_start_overlay(wave_num: Int) -> Element(Msg) {
+  main_info_overlay("Starting wave " <> int.to_string(wave_num), True)
+}
+
+fn pause_info_overlay() -> Element(Msg) {
+  main_info_overlay("Paused", False)
+}
+
+fn main_info_overlay(main_text: String, fade_out: Bool) -> Element(Msg) {
+  let class_name =
+    "main-info-text"
+    <> case fade_out {
+      True -> " fade-out"
+      False -> ""
+    }
+  html.div([class("main-info-wrapper")], [
+    html.span([class(class_name)], [
+      html.text(main_text),
+    ]),
+  ])
+}
+
+fn controls_overlay() -> Element(Msg) {
+  html.div([class("controls-overlay-wrapper")], [
+    html.div([class("controls-overlay")], [
+      html.h2([], [html.text("Game")]),
+      html.div([], [html.text("Defend your diamond towers!")]),
+      html.br([]),
+      html.div([], [
+        html.text("Use WASD to move around, press space to fire at the enemies"),
+      ]),
+    ]),
+  ])
 }
 
 pub type GameModel {
@@ -207,9 +304,10 @@ pub fn update(
     }
     GamePlaying(_), GameMsg(game.UpdateGui(gui_info)) -> {
       let playing_info = case gui_info {
-        game.NewWave(new_wave, enemy_count) ->
+        game.NewWaveUi(new_wave, enemy_count) ->
           StartWaveUi(PlayingInfo(new_wave, enemy_count))
         game.EnemiesAmount(enemy_count) -> ChangeEnemies(enemy_count)
+        game.EndWaveUi(wave_end) -> WaveCompleteUi(wave_end)
       }
       #(model, ui.dispatch_to_lustre(playing_info))
     }

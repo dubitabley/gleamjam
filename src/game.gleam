@@ -29,8 +29,13 @@ pub type Model {
     enemies: enemy.EnemyModel,
     camera_position: vec2.Vec2(Float),
     asset_cache: asset.AssetCache,
-    wave: Int,
+    wave_info: WaveInfo,
   )
+}
+
+pub type WaveInfo {
+  OngoingWave(wave_num: Int)
+  WaveEnd(last_wave_num: Int)
 }
 
 pub type Msg {
@@ -41,6 +46,7 @@ pub type Msg {
 pub type GameMsgType {
   Tick
   StartWave
+  EndWave
   EnemyMsg(enemy.EnemyMsg)
 }
 
@@ -49,7 +55,8 @@ fn map_game_msg(msg: GameMsgType) -> Msg {
 }
 
 pub type UpdateGuiInfo {
-  NewWave(wave: Int, enemy_count: Int)
+  EndWaveUi(wave_num: Int)
+  NewWaveUi(wave: Int, enemy_count: Int)
   EnemiesAmount(enemy_count: Int)
 }
 
@@ -72,7 +79,7 @@ pub fn init(
       shots: shot_model,
       enemies: enemy_model,
       asset_cache: asset_cache,
-      wave: 0,
+      wave_info: WaveEnd(0),
     ),
     effect.batch([
       effect.tick(Tick) |> effect.map(map_game_msg),
@@ -100,15 +107,25 @@ pub fn update(
       #(model, effect.batch([tick_effect, effect]))
     }
     StartWave -> {
-      let new_wave = model.wave + 1
+      let assert WaveEnd(current_wave) = model.wave_info
+      let new_wave = current_wave + 1
       // add enemies as appropriate
       let enemy_model = start_wave(new_wave, model.time)
       // update gui
       let enemy_count = list.length(enemy_model.enemies)
-      let wave_info = NewWave(new_wave, enemy_count)
+      let new_wave_info = NewWaveUi(new_wave, enemy_count)
       #(
-        Model(..model, enemies: enemy_model, wave: new_wave),
-        effect.from(fn(dispatch) { dispatch(UpdateGui(wave_info)) }),
+        Model(..model, enemies: enemy_model, wave_info: OngoingWave(new_wave)),
+        effect.from(fn(dispatch) { dispatch(UpdateGui(new_wave_info)) }),
+      )
+    }
+    EndWave -> {
+      let assert OngoingWave(current_wave) = model.wave_info
+      #(
+        Model(..model, wave_info: WaveEnd(current_wave)),
+        effect.from(fn(dispatch) {
+          dispatch(UpdateGui(EndWaveUi(current_wave)))
+        }),
       )
     }
     EnemyMsg(msg) -> {
@@ -316,7 +333,7 @@ fn check_player_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
 
   let effect = case end_enemy_count != start_enemy_count, end_enemy_count == 0 {
     True, True ->
-      effect.from(fn(dispatch) { dispatch(StartWave |> map_game_msg) })
+      effect.from(fn(dispatch) { dispatch(EndWave |> map_game_msg) })
     True, False ->
       effect.from(fn(dispatch) {
         dispatch(UpdateGui(EnemiesAmount(end_enemy_count)))

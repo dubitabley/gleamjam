@@ -81,14 +81,72 @@ button:hover {
     color: var(--blue);
 }
 
-.play-button-wrapper {
+.game-button-wrapper {
     position: absolute;
     bottom: 10px;
     right: 10px;
     display: flex;
     flex-direction: column-reverse;
+    align-items: end;
+    gap: 10px;
 }
 
-.play-button {
+.game-button {
+    font-size: 30px;
+}
+
+.main-info-wrapper {
+    top: 20%;
+    width: 100%;
+    text-align: center;
+    position: absolute;
+    font-size: 60px;
+}
+
+.main-info-text {
+    color: var(--pink-colour);
+    font-weight: bold;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.fade-out {
+    animation: fade-out ease-out forwards 3s;
+}
+
+@keyframes fade-out {
+    0% {
+        opacity: 100%;
+    }
+
+    100% {
+        opacity: 0%;
+    }
+}
+
+.controls-overlay-wrapper {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.controls-overlay {
+    width: 60%;
+    height: 60%;
+    border: 5px solid var(--pink-colour);
+    border-radius: 10px;
+    box-sizing: border-box;
+    background-color: var(--blue);
+    opacity: 90%;
+    padding: 20px;
+    color: var(--black);
+}
+
+.controls-overlay > h2 {
+    text-align: center;
     font-size: 30px;
 }
