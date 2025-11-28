@@ -2,6 +2,7 @@ import game
 import gleam/bool
 import gleam/float
 import gleam/int
+import gleam/list
 import gleam/option
 import loader
 import lustre
@@ -15,9 +16,11 @@ import tiramisu/asset
 import tiramisu/background
 import tiramisu/camera
 import tiramisu/effect.{type Effect}
+import tiramisu/light
 import tiramisu/scene
 import tiramisu/transform
 import tiramisu/ui
+import utils
 import vec/vec3
 
 pub type State {
@@ -40,6 +43,7 @@ pub type Model {
 pub type Msg {
   StartLoad
   LoadAssetInfo(loader.LoadState)
+  LoadMenuAssetInfo(loader.LoadState)
   WaveCompleteUi(Int)
   StartWaveUi(PlayingInfo)
   ChangeEnemies(Int)
@@ -63,17 +67,31 @@ pub fn main() -> Nil {
   )
 }
 
-fn init_ui(_flags) {
-  #(Model(Menu), ui.register_lustre())
+fn init_ui(_flags) -> #(Model, ui_effect.Effect(Msg)) {
+  let background_assets_effect =
+    loader.load_assets_menu()
+    |> ui_effect.map(fn(loader_msg) { LoadMenuAssetInfo(loader_msg) })
+  #(
+    Model(Menu),
+    ui_effect.batch([ui.register_lustre(), background_assets_effect]),
+  )
 }
 
 fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
   case model.state, msg {
     Menu, StartLoad | GameOver, StartLoad -> {
       let load_effect =
-        loader.load_assets()
+        loader.load_assets_game()
         |> ui_effect.map(fn(load_info) { LoadAssetInfo(load_info) })
       #(Model(state: Loading(option.None)), load_effect)
+    }
+    _, LoadMenuAssetInfo(load_state) -> {
+      case load_state {
+        loader.AssetsLoaded(load_results) -> {
+          #(model, ui.dispatch_to_tiramisu(LoadBackground(load_results.cache)))
+        }
+        _ -> #(model, ui_effect.none())
+      }
     }
     _, LoadAssetInfo(load_state) -> {
       case load_state {
@@ -94,38 +112,38 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
     Playing(_, _, points), StartWaveUi(new_info)
     | WaveComplete(_, points), StartWaveUi(new_info)
     -> {
-      #(Model(Playing(new_info, False, points)), ui_effect.none())
+      #(Model(state: Playing(new_info, False, points)), ui_effect.none())
     }
     Playing(info, resuming, points), ChangeEnemies(enemy_num) -> #(
-      Model(Playing(PlayingInfo(info.wave, enemy_num), resuming, points)),
+      Model(state: Playing(PlayingInfo(info.wave, enemy_num), resuming, points)),
       ui_effect.none(),
     )
     Playing(info, _, points), TogglePause -> #(
-      Model(Paused(info, False, points)),
+      Model(state: Paused(info, False, points)),
       ui.dispatch_to_tiramisu(ToggleGamePause),
     )
     Paused(info, _, points), TogglePause -> #(
-      Model(Playing(info, True, points)),
+      Model(state: Playing(info, True, points)),
       ui.dispatch_to_tiramisu(ToggleGamePause),
     )
     Paused(info, controls_open, points), ToggleControls -> #(
-      Model(Paused(info, bool.negate(controls_open), points)),
+      Model(state: Paused(info, bool.negate(controls_open), points)),
       ui_effect.none(),
     )
     Playing(info, resume, _), UpdatePointsUi(points) -> #(
-      Model(Playing(info, resume, points)),
+      Model(state: Playing(info, resume, points)),
       ui_effect.none(),
     )
     Paused(info, controls_open, _), UpdatePointsUi(points) -> #(
-      Model(Paused(info, controls_open, points)),
+      Model(state: Paused(info, controls_open, points)),
       ui_effect.none(),
     )
     WaveComplete(wave_num, _), UpdatePointsUi(points) -> #(
-      Model(WaveComplete(wave_num, points)),
+      Model(state: WaveComplete(wave_num, points)),
       ui_effect.none(),
     )
-    _, GameOverUi -> #(Model(GameOver), ui_effect.none())
-    _, BackToMenu -> #(Model(Menu), ui_effect.none())
+    _, GameOverUi -> #(Model(state: GameOver), ui_effect.none())
+    _, BackToMenu -> #(Model(state: Menu), ui_effect.none())
     _, StartLoad
     | _, StartWaveUi(_)
     | _, ChangeEnemies(_)
@@ -332,7 +350,11 @@ fn points_overlay(points: Int) -> Element(Msg) {
 }
 
 pub type GameModel {
-  GameModel(state: GameState)
+  GameModel(
+    state: GameState,
+    background: GameBackground,
+    asset_cache: option.Option(asset.AssetCache),
+  )
 }
 
 pub type GameState {
@@ -344,17 +366,52 @@ pub type GameState {
   GamePaused(game.Model)
 }
 
+pub type GameBackground {
+  GameBackground(stars: List(BackgroundStar))
+}
+
+pub type BackgroundStar {
+  BackgroundStar(
+    x: Float,
+    y: Float,
+    rotation_x: Float,
+    rotation_y: Float,
+    rotation_z: Float,
+  )
+}
+
+fn generate_background() -> GameBackground {
+  let star_num = 100
+  list.range(1, star_num)
+  |> list.map(fn(_) {
+    BackgroundStar(
+      float.random() *. 3000.0 -. 1500.0,
+      float.random() *. 3000.0 -. 1500.0,
+      utils.random_angle(),
+      utils.random_angle(),
+      utils.random_angle(),
+    )
+  })
+  |> GameBackground()
+}
+
 pub type GameMsg {
   StartGame(asset.AssetCache)
   GameMsg(game.Msg)
+  LoadBackground(asset.AssetCache)
   ToggleGamePause
   EndGame
+  Tick
 }
 
 pub fn init(
   _ctx: tiramisu.Context(String),
 ) -> #(GameModel, Effect(GameMsg), option.Option(_)) {
-  #(GameModel(GameMenu), effect.none(), option.None)
+  #(
+    GameModel(GameMenu, generate_background(), option.None),
+    effect.tick(Tick),
+    option.None,
+  )
 }
 
 pub fn update(
@@ -366,7 +423,7 @@ pub fn update(
     GameMenu, StartGame(asset_cache) -> {
       let #(game_model, game_effect, _physics) = game.init(ctx, asset_cache)
       let effect = effect.map(game_effect, fn(e) { GameMsg(e) })
-      #(GameModel(GamePlaying(game_model)), effect)
+      #(GameModel(..model, state: GamePlaying(game_model)), effect)
     }
     GamePlaying(_), GameMsg(game.UpdateGui(gui_info)) -> {
       let playing_info = case gui_info {
@@ -382,22 +439,37 @@ pub fn update(
       let #(game_model, game_effect, _physics) =
         game.update(game_model, msg, ctx)
       let effect = effect.map(game_effect, fn(e) { GameMsg(e) })
-      #(GameModel(GamePlaying(game_model)), effect)
+      #(GameModel(..model, state: GamePlaying(game_model)), effect)
     }
     GamePlaying(_), GameMsg(game.GameOver) -> {
-      #(GameModel(GameMenu), ui.dispatch_to_lustre(GameOverUi))
+      #(GameModel(..model, state: GameMenu), ui.dispatch_to_lustre(GameOverUi))
     }
     GamePlaying(game_model), ToggleGamePause -> #(
-      GameModel(GamePaused(game_model)),
+      GameModel(..model, state: GamePaused(game_model)),
       effect.none(),
     )
     GamePaused(game_model), ToggleGamePause -> {
       let effect = game.resume()
       let effect = effect.map(effect, fn(e) { GameMsg(e) })
-      #(GameModel(GamePlaying(game_model)), effect)
+      #(GameModel(..model, state: GamePlaying(game_model)), effect)
     }
     _, EndGame -> {
-      #(GameModel(GameMenu), ui.dispatch_to_lustre(GameOverUi))
+      #(GameModel(..model, state: GameMenu), ui.dispatch_to_lustre(GameOverUi))
+    }
+    _, LoadBackground(asset_cache) -> #(
+      GameModel(..model, asset_cache: option.Some(asset_cache)),
+      effect.none(),
+    )
+    _, Tick -> {
+      let background_stars =
+        model.background.stars
+        |> list.map(fn(star) {
+          BackgroundStar(..star, rotation_y: star.rotation_y +. 0.1)
+        })
+      #(
+        GameModel(..model, background: GameBackground(background_stars)),
+        effect.tick(Tick),
+      )
     }
     _, StartGame(_) | _, GameMsg(_) | _, ToggleGamePause -> #(
       model,
@@ -412,6 +484,37 @@ pub fn view(
   model: GameModel,
   ctx: tiramisu.Context(String),
 ) -> scene.Node(String) {
+  let background_nodes = case model.asset_cache {
+    option.Some(asset_cache) -> {
+      case asset_cache |> asset.get_model(loader.background_star_asset) {
+        Ok(star_model) -> {
+          let star_transforms =
+            model.background.stars
+            |> list.map(fn(star_info) {
+              transform.at(vec3.Vec3(star_info.x, star_info.y, -10.0))
+              |> transform.with_euler_rotation(vec3.Vec3(
+                star_info.rotation_x,
+                star_info.rotation_y,
+                star_info.rotation_z,
+              ))
+              |> transform.with_scale(vec3.Vec3(1.0, 1.0, 3.0))
+            })
+          [
+            scene.instanced_model(
+              id: "BackgroundStars",
+              object: star_model.scene,
+              instances: star_transforms,
+              physics: option.None,
+              material: option.None,
+            ),
+          ]
+        }
+        Error(_) -> []
+      }
+    }
+    option.None -> []
+  }
+
   case model.state {
     GameMenu -> {
       let cam =
@@ -419,20 +522,27 @@ pub fn view(
           width: float.round(ctx.canvas_width),
           height: float.round(ctx.canvas_height),
         )
-      scene.empty(id: "Scene", transform: transform.identity, children: [
-        scene.camera(
-          id: "camera",
-          camera: cam,
-          transform: transform.at(position: vec3.Vec3(0.0, 0.0, 20.0)),
-          look_at: option.None,
-          active: True,
-          viewport: option.None,
-          postprocessing: option.None,
-        ),
-      ])
+      let assert Ok(light) = light.ambient(intensity: 0.5, color: 0xffffff)
+      scene.empty(
+        id: "Scene",
+        transform: transform.identity,
+        children: [
+          scene.camera(
+            id: "camera",
+            camera: cam,
+            transform: transform.at(position: vec3.Vec3(0.0, 0.0, 20.0)),
+            look_at: option.None,
+            active: True,
+            viewport: option.None,
+            postprocessing: option.None,
+          ),
+          scene.light(id: "Light", light: light, transform: transform.identity),
+        ]
+          |> list.append(background_nodes),
+      )
     }
 
     GamePlaying(game_model) | GamePaused(game_model) ->
-      game.view(game_model, ctx)
+      game.view(game_model, ctx, background_nodes)
   }
 }

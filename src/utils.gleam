@@ -2,6 +2,7 @@ import gleam/bool
 import gleam/float
 import gleam/list
 import gleam/result
+import gleam_community/maths
 
 pub fn hypot(x: Float, y: Float) -> Float {
   float.square_root(x *. x +. y *. y)
@@ -14,6 +15,10 @@ pub type PointWithDirection {
 
 pub fn second_tuple(tuple: #(value1, value2)) -> value2 {
   tuple.1
+}
+
+pub fn random_angle() -> Float {
+  float.random() *. maths.pi() *. 2.0
 }
 
 /// returns a list of objects that exist in list but not in list2
