@@ -26,6 +26,7 @@ pub type State {
   Playing(playing_info: PlayingInfo, resume: Bool, points: Int)
   Paused(PlayingInfo, controls_open: Bool, points: Int)
   WaveComplete(wave_num: Int, points: Int)
+  GameOver
 }
 
 pub type PlayingInfo {
@@ -45,6 +46,8 @@ pub type Msg {
   TogglePause
   ToggleControls
   UpdatePointsUi(points: Int)
+  GameOverUi
+  BackToMenu
 }
 
 pub fn main() -> Nil {
@@ -66,7 +69,7 @@ fn init_ui(_flags) {
 
 fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
   case model.state, msg {
-    Menu, StartLoad -> {
+    Menu, StartLoad | GameOver, StartLoad -> {
       let load_effect =
         loader.load_assets()
         |> ui_effect.map(fn(load_info) { LoadAssetInfo(load_info) })
@@ -121,6 +124,8 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
       Model(WaveComplete(wave_num, points)),
       ui_effect.none(),
     )
+    _, GameOverUi -> #(Model(GameOver), ui_effect.none())
+    _, BackToMenu -> #(Model(Menu), ui_effect.none())
     _, StartLoad
     | _, StartWaveUi(_)
     | _, ChangeEnemies(_)
@@ -142,6 +147,7 @@ fn view_ui(model: Model) -> Element(Msg) {
       Paused(playing_info, controls_open, points) ->
         paused_overlay(playing_info, controls_open, points)
       WaveComplete(wave_num, points) -> wave_over_overlay(wave_num, points)
+      GameOver -> game_over_overlay()
     },
   ])
 }
@@ -235,6 +241,22 @@ fn play_button(paused: Bool) -> Element(Msg) {
   ])
 }
 
+fn game_over_overlay() -> Element(Msg) {
+  html.div([class("main-info-wrapper")], [
+    html.div([class("game-over-button-wrapper")], [
+      html.button([class("game-over-button"), event.on_click(BackToMenu)], [
+        html.text("Back to Menu"),
+      ]),
+      html.button([class("game-over-button"), event.on_click(StartLoad)], [
+        html.text("Play Again"),
+      ]),
+      html.div([class("lucy-wrapper")], [
+        html.img([class("lucy-over"), attribute.src("lucy_over.webp")]),
+      ]),
+    ]),
+  ])
+}
+
 fn paused_overlay(
   playing_info: PlayingInfo,
   controls_open: Bool,
@@ -314,8 +336,11 @@ pub type GameModel {
 }
 
 pub type GameState {
+  /// Just in the menu, outside of the game
   GameMenu
+  /// Playing the game
   GamePlaying(game.Model)
+  /// Paused game
   GamePaused(game.Model)
 }
 
@@ -323,6 +348,7 @@ pub type GameMsg {
   StartGame(asset.AssetCache)
   GameMsg(game.Msg)
   ToggleGamePause
+  EndGame
 }
 
 pub fn init(
@@ -358,6 +384,9 @@ pub fn update(
       let effect = effect.map(game_effect, fn(e) { GameMsg(e) })
       #(GameModel(GamePlaying(game_model)), effect)
     }
+    GamePlaying(_), GameMsg(game.GameOver) -> {
+      #(GameModel(GameMenu), ui.dispatch_to_lustre(GameOverUi))
+    }
     GamePlaying(game_model), ToggleGamePause -> #(
       GameModel(GamePaused(game_model)),
       effect.none(),
@@ -366,6 +395,9 @@ pub fn update(
       let effect = game.resume()
       let effect = effect.map(effect, fn(e) { GameMsg(e) })
       #(GameModel(GamePlaying(game_model)), effect)
+    }
+    _, EndGame -> {
+      #(GameModel(GameMenu), ui.dispatch_to_lustre(GameOverUi))
     }
     _, StartGame(_) | _, GameMsg(_) | _, ToggleGamePause -> #(
       model,

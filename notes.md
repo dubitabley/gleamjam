@@ -19,8 +19,8 @@ Very much like elm in a lot of ways
 - change background
 - upgrades to tower?
 - sound effects
-- game over screen
 - make towers look nicer
+- background
 
 done:
 
@@ -37,3 +37,4 @@ done:
 - wait on wave end
 - add load progress to page
 - points
+- game over screen

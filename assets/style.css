@@ -47,6 +47,14 @@ button:hover {
     position: relative;
 }
 
+.lucy-over {
+    position: absolute;
+    animation-name: lucy-menu-anim;
+    animation-duration: 5s;
+    animation-direction: alternate;
+    animation-iteration-count: infinite;
+}
+
 @keyframes lucy-menu-anim {
     0% {
         left: -300px;
@@ -156,4 +164,14 @@ button:hover {
     left: 10px;
     top: 10px;
     color: var(--blue);
+}
+
+.game-over-button-wrapper {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.game-over-button {
+    font-size: 40px;
 }

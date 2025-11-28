@@ -44,6 +44,7 @@ pub type WaveInfo {
 pub type Msg {
   GameMsg(GameMsgType)
   UpdateGui(UpdateGuiInfo)
+  GameOver
 }
 
 pub type GameMsgType {
@@ -328,6 +329,11 @@ fn check_enemy_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
     model.player.health - 2 * list.length(shots_player_collisions)
   let player = player.PlayerModel(..model.player, health: player_health)
 
+  let effect = case player_health <= 0 {
+    True -> effect.from(fn(dispatch) { dispatch(GameOver) })
+    False -> effect.none()
+  }
+
   #(
     Model(
       ..model,
@@ -335,7 +341,7 @@ fn check_enemy_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
       shots: shot.ShotModel(shots),
       tower: tower.TowerModel(towers),
     ),
-    effect.none(),
+    effect,
   )
 }
 
