@@ -1,9 +1,11 @@
 //// Stuff for handling the ui in game in the world
 //// That the player moves over
 
+import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option
+import gleam/result
 import loader
 import tiramisu/asset
 import tiramisu/geometry
@@ -23,10 +25,15 @@ pub type Button(effect_type) {
     y: Float,
     width: Float,
     height: Float,
-    text: String,
+    icon: ButtonIcon,
     enabled: Bool,
     on_click: effect_type,
   )
+}
+
+pub type ButtonIcon {
+  ButtonText(String)
+  ButtonIcon(String)
 }
 
 pub fn init() -> Model(effect_type) {
@@ -74,6 +81,8 @@ pub fn view_buttons(
       map: option.None,
     )
 
+  let assert Ok(icon_geom) = geometry.plane(1.0, 1.0)
+
   buttons
   |> list.index_map(fn(button, index) {
     let colour = case button.enabled {
@@ -87,19 +96,39 @@ pub fn view_buttons(
         opacity: 1.0,
         map: option.None,
       )
-    let assert Ok(text_geom) =
-      geometry.text(
-        text: button.text,
-        font: arial_font,
-        size: 10.0,
-        depth: 0.0,
-        curve_segments: 10,
-        bevel_enabled: False,
-        bevel_thickness: 1.0,
-        bevel_size: 1.0,
-        bevel_offset: 1.0,
-        bevel_segments: 1,
-      )
+    let #(text_geom, text_mat) = case button.icon {
+      ButtonText(text) -> {
+        let assert Ok(text_geom) =
+          geometry.text(
+            text: text,
+            font: arial_font,
+            size: 10.0,
+            depth: 0.0,
+            curve_segments: 10,
+            bevel_enabled: False,
+            bevel_thickness: 1.0,
+            bevel_size: 1.0,
+            bevel_offset: 1.0,
+            bevel_segments: 1,
+          )
+        #(text_geom, text_material)
+      }
+      ButtonIcon(path) -> {
+        let assert Ok(icon_mat) =
+          material.basic(
+            color: colour,
+            transparent: False,
+            opacity: 1.0,
+            map: asset_cache |> asset.get_texture(path) |> option.from_result,
+          )
+        #(icon_geom, icon_mat)
+      }
+    }
+
+    let text_width =
+      0.006 *. { float.square_root(button.width) |> result.unwrap(0.0) }
+    let text_height =
+      0.006 *. { float.square_root(button.height) |> result.unwrap(0.0) }
     scene.empty(
       id: "WorldButtonWrapper" <> int.to_string(index),
       transform: transform.at(vec3.Vec3(button.x, button.y, 1.0))
@@ -115,9 +144,13 @@ pub fn view_buttons(
         scene.mesh(
           id: "WorldButtonText" <> int.to_string(index),
           geometry: text_geom,
-          material: text_material,
-          transform: transform.at(vec3.Vec3(-0.45, -0.25, 1.0))
-            |> transform.with_scale(vec3.Vec3(0.013, 0.04, 1.0)),
+          material: text_mat,
+          transform: transform.at(vec3.Vec3(
+            text_width *. -6.0,
+            text_height *. -4.0,
+            1.0,
+          ))
+            |> transform.with_scale(vec3.Vec3(text_width, text_height, 1.0)),
           physics: option.None,
         ),
       ],

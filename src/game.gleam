@@ -139,9 +139,9 @@ pub fn update(
           world_ui.Button(
             0.0,
             0.0,
-            200.0,
             100.0,
-            "Start Wave",
+            100.0,
+            world_ui.ButtonText("|>"),
             False,
             StartWave,
           ),
