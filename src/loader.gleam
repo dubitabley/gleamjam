@@ -16,20 +16,24 @@ pub const player_shot_asset: String = "shot.webp"
 
 pub const arial_font_asset: String = "fonts/arial_bold.json"
 
+pub const background_star_asset: String = "star.glb"
+
 pub type LoadState {
   LoadProgress(asset.LoadProgress)
   AssetsLoaded(asset.BatchLoadResult)
 }
 
-pub fn load_assets() -> Effect(LoadState) {
-  let assets_to_load = [
+pub fn load_assets_game() -> Effect(LoadState) {
+  load_assets([
     asset.TextureAsset(lucy_asset),
     asset.TextureAsset(diamond_asset),
     asset.TextureAsset(decor_asset),
     asset.TextureAsset(player_shot_asset),
     asset.FontAsset(arial_font_asset),
-  ]
+  ])
+}
 
+fn load_assets(assets_to_load: List(asset.AssetType)) -> Effect(LoadState) {
   effect.from(fn(dispatch) {
     promise.tap(
       asset.load_batch(assets_to_load, fn(progress) {
@@ -42,4 +46,8 @@ pub fn load_assets() -> Effect(LoadState) {
     )
     Nil
   })
+}
+
+pub fn load_assets_menu() {
+  load_assets([asset.ModelAsset(background_star_asset)])
 }

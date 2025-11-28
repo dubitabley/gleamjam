@@ -16,11 +16,10 @@ Very much like elm in a lot of ways
 
 - try out animations
 - potentially add way to rotate lucy
-- change background
 - upgrades to tower?
 - sound effects
 - make towers look nicer
-- background
+- final boss (wave 5?)
 
 done:
 
@@ -38,3 +37,4 @@ done:
 - add load progress to page
 - points
 - game over screen
+- background

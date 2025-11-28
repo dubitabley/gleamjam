@@ -443,39 +443,48 @@ fn check_collision_player_shot(
   utils.check_collision_circles(player_circle, shot_circle)
 }
 
-pub fn view(model: Model, ctx: tiramisu.Context(String)) -> scene.Node(String) {
+pub fn view(
+  model: Model,
+  ctx: tiramisu.Context(String),
+  background: List(scene.Node(String)),
+) -> scene.Node(String) {
   let cam =
     camera.camera_2d(
       width: float.round(ctx.canvas_width),
       height: float.round(ctx.canvas_height),
     )
 
-  scene.empty(id: "Scene", transform: transform.identity, children: [
-    scene.camera(
-      id: "camera",
-      camera: cam,
-      transform: transform.at(position: vec3.Vec3(
-        model.camera_position.x,
-        model.camera_position.y,
-        20.0,
-      )),
-      look_at: option.None,
-      active: True,
-      viewport: option.None,
-      postprocessing: option.None,
-    ),
-    scene.light(
-      id: "ambient",
-      light: {
-        let assert Ok(light) = light.ambient(color: 0xffffff, intensity: 1.0)
-        light
-      },
-      transform: transform.identity,
-    ),
-    player.view(model.player, model.asset_cache),
-    tower.view(model.tower, model.asset_cache),
-    shot.view(model.shots, model.asset_cache),
-    enemy.view(model.enemies),
-    world_ui.view(model.world_ui, model.asset_cache),
-  ])
+  scene.empty(
+    id: "Scene",
+    transform: transform.identity,
+    children: [
+      scene.camera(
+        id: "camera",
+        camera: cam,
+        transform: transform.at(position: vec3.Vec3(
+          model.camera_position.x,
+          model.camera_position.y,
+          20.0,
+        )),
+        look_at: option.None,
+        active: True,
+        viewport: option.None,
+        postprocessing: option.None,
+      ),
+      scene.light(
+        id: "ambient",
+        light: {
+          let assert Ok(light) = light.ambient(color: 0xffffff, intensity: 1.0)
+          light
+        },
+        transform: transform.identity,
+      ),
+      player.view(model.player, model.asset_cache),
+      tower.view(model.tower, model.asset_cache),
+      shot.view(model.shots, model.asset_cache),
+      enemy.view(model.enemies),
+      world_ui.view(model.world_ui, model.asset_cache),
+    ]
+      |> list.append(background),
+  )
 }
