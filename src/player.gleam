@@ -147,7 +147,7 @@ pub fn view(
         id: "Player",
         geometry: sprite_geom,
         material: sprite_mat,
-        transform: transform.identity,
+        transform: transform.at(position: vec3.Vec3(0.0, 0.0, 2.0)),
         physics: option.None,
       ),
       health_bar.view_health_bar(

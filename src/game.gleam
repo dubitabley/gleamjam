@@ -304,7 +304,7 @@ fn check_enemy_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
         |> list.map(fn(collision) { collision.0 })
         |> list.count(fn(coll) { coll == tower })
       let new_health = tower.health - collision_num * 2
-      let tower = tower.Tower(..tower, health: new_health)
+      let tower = tower.set_tower_health(tower, new_health)
       case new_health > 0 {
         True -> Ok(tower)
         False -> {
