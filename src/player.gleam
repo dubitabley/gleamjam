@@ -141,7 +141,7 @@ pub fn view(
     )
   scene.empty(
     id: "PlayerGroup",
-    transform: transform.at(position: vec3.Vec3(player.x, player.y, 0.0)),
+    transform: transform.at(position: vec3.Vec3(player.x, player.y, 10.0)),
     children: [
       scene.mesh(
         id: "Player",

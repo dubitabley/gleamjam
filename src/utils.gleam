@@ -1,5 +1,6 @@
 import gleam/bool
 import gleam/float
+import gleam/int
 import gleam/list
 import gleam/result
 import gleam_community/maths
@@ -19,6 +20,25 @@ pub fn second_tuple(tuple: #(value1, value2)) -> value2 {
 
 pub fn random_angle() -> Float {
   float.random() *. maths.pi() *. 2.0
+}
+
+pub fn random_bool() -> Bool {
+  int.random(2) == 1
+}
+
+pub fn sum(amounts: List(Int)) -> Int {
+  amounts |> list.fold(0, fn(a, b) { a + b })
+}
+
+pub fn sign(num: Float) -> Float {
+  case num >. 0.0 {
+    True -> 1.0
+    False ->
+      case num <. 0.0 {
+        True -> -1.0
+        False -> 0.0
+      }
+  }
 }
 
 /// returns a list of objects that exist in list but not in list2

@@ -262,6 +262,7 @@ fn play_button(paused: Bool) -> Element(Msg) {
 fn game_over_overlay() -> Element(Msg) {
   html.div([class("main-info-wrapper")], [
     html.div([class("game-over-button-wrapper")], [
+      html.h1([], [html.text("Game Over!")]),
       html.button([class("game-over-button"), event.on_click(BackToMenu)], [
         html.text("Back to Menu"),
       ]),
@@ -374,9 +375,11 @@ pub type BackgroundStar {
   BackgroundStar(
     x: Float,
     y: Float,
+    size: Float,
     rotation_x: Float,
     rotation_y: Float,
     rotation_z: Float,
+    pos_dir_x: Bool,
   )
 }
 
@@ -387,9 +390,11 @@ fn generate_background() -> GameBackground {
     BackgroundStar(
       float.random() *. 3000.0 -. 1500.0,
       float.random() *. 3000.0 -. 1500.0,
+      float.random() *. 0.7 +. 0.5,
       utils.random_angle(),
       utils.random_angle(),
       utils.random_angle(),
+      utils.random_bool(),
     )
   })
   |> GameBackground()
@@ -466,7 +471,13 @@ pub fn update(
         |> list.map(fn(star) {
           BackgroundStar(
             ..star,
-            rotation_z: star.rotation_z +. float.random() *. 0.1,
+            rotation_z: star.rotation_z
+              +. float.random()
+              *. 0.1
+              *. case star.pos_dir_x {
+                True -> 1.0
+                False -> -1.0
+              },
             rotation_y: star.rotation_y +. float.random() *. 0.1,
           )
         })
@@ -501,7 +512,11 @@ pub fn view(
                 star_info.rotation_y,
                 star_info.rotation_z,
               ))
-              |> transform.with_scale(vec3.Vec3(1.0, 1.0, 3.0))
+              |> transform.with_scale(vec3.Vec3(
+                star_info.size,
+                star_info.size,
+                1.0,
+              ))
             })
           [
             scene.instanced_model(

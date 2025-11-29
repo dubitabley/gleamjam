@@ -53,6 +53,11 @@ pub type GameMsgType {
   EndWave
   EnemyMsg(enemy.EnemyMsg)
   AddPoints(point_num: Int)
+  UpgradeTower(TowerUpgradeInfo)
+}
+
+pub type TowerUpgradeInfo {
+  TowerUpgradeInfo(tower_id: Int)
 }
 
 fn map_game_msg(msg: GameMsgType) -> Msg {
@@ -136,17 +141,21 @@ pub fn update(
       let assert OngoingWave(current_wave) = model.wave_info
       // add world ui button
       let world_ui =
-        world_ui.Model([
-          world_ui.Button(
-            0.0,
-            0.0,
-            100.0,
-            100.0,
-            world_ui.ButtonText("|>"),
-            False,
-            StartWave,
-          ),
-        ])
+        world_ui.Model(
+          [
+            world_ui.Button(
+              0.0,
+              0.0,
+              100.0,
+              100.0,
+              world_ui.ButtonText("|>"),
+              0,
+              False,
+              StartWave,
+            ),
+          ]
+          |> list.append(add_tower_world_buttons(model.tower.towers)),
+        )
       #(
         Model(..model, wave_info: WaveEnd(current_wave), world_ui: world_ui),
         effect.from(fn(dispatch) {
@@ -177,9 +186,41 @@ pub fn update(
         }),
       )
     }
+    UpgradeTower(tower_info) -> {
+      let towers =
+        model.tower.towers
+        |> list.map(fn(tower) {
+          case tower.id == tower_info.tower_id {
+            True -> tower.upgrade_tower(tower)
+            False -> tower
+          }
+        })
+      let model = Model(..model, tower: tower.TowerModel(towers))
+      #(model, effect.none())
+    }
   }
 
   #(model, effect, option.None)
+}
+
+fn add_tower_world_buttons(
+  towers: List(tower.Tower),
+) -> List(world_ui.Button(GameMsgType)) {
+  towers
+  |> list.map(fn(tower) {
+    let x = tower.x +. utils.sign(tower.x) *. 100.0
+    let y = tower.y +. utils.sign(tower.y) *. 100.0
+    world_ui.Button(
+      x,
+      y,
+      80.0,
+      80.0,
+      world_ui.ButtonText("+"),
+      5,
+      False,
+      UpgradeTower(TowerUpgradeInfo(tower.id)),
+    )
+  })
 }
 
 fn start_wave(wave_num: Int, time: Float) -> enemy.EnemyModel {
@@ -241,15 +282,25 @@ fn game_loop(
     |> effect.map(fn(enemy_msg) { GameMsg(EnemyMsg(enemy_msg)) })
   let player_rect =
     utils.Rectangle(player_model.x, player_model.y, player.size, player.size)
-  let world_ui = world_ui.check_player_collisions(model.world_ui, player_rect)
+  let world_ui =
+    world_ui.check_player_enabled(model.world_ui, model.points, player_rect)
   let interact = input.is_key_pressed(ctx.input, input.Enter)
-  let collision_effect =
+  let #(effects, costs) =
     case interact {
       True -> world_ui.get_effect_collisions(world_ui)
       False -> []
     }
+    |> list.unzip()
+  let collision_effect =
+    effects
     |> list.map(fn(msg) { effect.from(fn(dispatch) { dispatch(GameMsg(msg)) }) })
     |> effect.batch
+  // technically you could go into negative here :/
+  // should fix maybe
+  let total_cost = costs |> utils.sum()
+  let new_points = model.points - total_cost
+  let points_ui_effect =
+    effect.from(fn(dispatch) { dispatch(UpdateGui(UpdatePoints(new_points))) })
   let new_time = model.time +. ctx.delta_time /. 1000.0
 
   let model =
@@ -260,6 +311,7 @@ fn game_loop(
       camera_position: vec2.Vec2(player_model.x, player_model.y),
       shots: shot_model,
       time: new_time,
+      points: new_points,
       world_ui: world_ui,
     )
   let #(model, player_shot_effect) = check_player_shot_collisions(model)
@@ -271,6 +323,7 @@ fn game_loop(
       player_shot_effect,
       enemy_shot_effect,
       collision_effect,
+      points_ui_effect,
     ]),
   )
 }

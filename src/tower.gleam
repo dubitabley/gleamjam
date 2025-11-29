@@ -10,6 +10,7 @@ import tiramisu/geometry
 import tiramisu/material
 import tiramisu/scene
 import tiramisu/transform
+import utils
 import vec/vec3
 
 const max_health: Int = 100
@@ -27,7 +28,18 @@ pub type TowerModel {
 }
 
 pub type Tower {
-  Tower(x: Float, y: Float, health: Int, decorations: List(Decoration))
+  Tower(
+    x: Float,
+    y: Float,
+    id: Int,
+    health: Int,
+    decorations: List(Decoration),
+    cannon: option.Option(Cannon),
+  )
+}
+
+pub type Cannon {
+  Cannon(x: Float, y: Float, rotation: Float)
 }
 
 pub type Decoration {
@@ -42,11 +54,35 @@ const tower_dist: Float = 200.0
 
 fn generate_towers() -> List(Tower) {
   [
-    Tower(0.0, 0.0 -. tower_dist, max_health, generate_decor()),
-    Tower(tower_dist, 0.0, max_health, generate_decor()),
-    Tower(0.0, tower_dist, max_health, generate_decor()),
-    Tower(0.0 -. tower_dist, 0.0, max_health, generate_decor()),
+    new_tower(0.0, 0.0 -. tower_dist, 1),
+    new_tower(tower_dist, 0.0, 2),
+    new_tower(0.0, tower_dist, 3),
+    new_tower(0.0 -. tower_dist, 0.0, 4),
   ]
+}
+
+fn new_tower(x: Float, y: Float, id: Int) -> Tower {
+  Tower(x, y, id, max_health, generate_decor(), option.None)
+}
+
+pub fn upgrade_tower(tower: Tower) -> Tower {
+  case tower.cannon {
+    option.Some(_cannon) -> {
+      // upgrade the cannon power
+      tower
+    }
+    option.None -> {
+      Tower(..tower, cannon: option.Some(new_cannon(tower)))
+    }
+  }
+}
+
+fn new_cannon(tower: Tower) -> Cannon {
+  let rotation = maths.atan2(tower.y, tower.x)
+  // position is offset from the tower
+  let x = utils.sign(tower.x) *. 70.0
+  let y = utils.sign(tower.y) *. 80.0
+  Cannon(x, y, rotation)
 }
 
 pub fn set_tower_health(tower: Tower, health: Int) -> Tower {
@@ -128,6 +164,11 @@ pub fn view(model: TowerModel, asset_cache) -> scene.Node(String) {
           )
         })
 
+      let cannon_mesh = case tower.cannon {
+        option.Some(cannon) -> [view_cannon(cannon, index, asset_cache)]
+        option.None -> []
+      }
+
       scene.empty(
         id: "TowerGroup" <> int.to_string(index),
         transform: transform.at(position: vec3.Vec3(tower.x, tower.y, 0.0)),
@@ -153,8 +194,36 @@ pub fn view(model: TowerModel, asset_cache) -> scene.Node(String) {
             width: 20.0,
           ),
         ]
-          |> list.append(decor_meshes),
+          |> list.append(decor_meshes)
+          |> list.append(cannon_mesh),
       )
     })
   scene.empty(id: "Towers", transform: transform.identity, children: children)
+}
+
+fn view_cannon(
+  cannon: Cannon,
+  tower_index: Int,
+  asset_cache: asset.AssetCache,
+) -> scene.Node(String) {
+  let assert Ok(sprite) =
+    material.basic(
+      color: 0xffffff,
+      transparent: True,
+      opacity: 1.0,
+      map: asset_cache
+        |> asset.get_texture(loader.cannon_asset)
+        |> option.from_result(),
+    )
+  let assert Ok(geom) = geometry.plane(1.0, 1.0)
+
+  scene.mesh(
+    id: "Cannon" <> int.to_string(tower_index),
+    geometry: geom,
+    material: sprite,
+    transform: transform.at(vec3.Vec3(cannon.x, cannon.y, 1.0))
+      |> transform.with_euler_rotation(vec3.Vec3(0.0, 0.0, cannon.rotation))
+      |> transform.with_scale(vec3.Vec3(100.0, 100.0, 1.0)),
+    physics: option.None,
+  )
 }

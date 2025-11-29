@@ -26,6 +26,7 @@ pub type Button(effect_type) {
     width: Float,
     height: Float,
     icon: ButtonIcon,
+    cost: Int,
     enabled: Bool,
     on_click: effect_type,
   )
@@ -40,26 +41,34 @@ pub fn init() -> Model(effect_type) {
   Model(buttons: [])
 }
 
-pub fn check_player_collisions(
+pub fn check_player_enabled(
   model: Model(effect_type),
+  points: Int,
   player_rect: utils.Rectangle,
 ) -> Model(effect_type) {
   let buttons =
     model.buttons
     |> list.map(fn(button) {
-      let button_rect =
-        utils.Rectangle(button.x, button.y, button.width, button.height)
-      let enabled = utils.check_collision_rect_rect(player_rect, button_rect)
+      let enabled = case points >= button.cost {
+        True -> {
+          let button_rect =
+            utils.Rectangle(button.x, button.y, button.width, button.height)
+          utils.check_collision_rect_rect(player_rect, button_rect)
+        }
+        False -> False
+      }
       Button(..button, enabled: enabled)
     })
   Model(buttons)
 }
 
-pub fn get_effect_collisions(model: Model(effect_type)) -> List(effect_type) {
+pub fn get_effect_collisions(
+  model: Model(effect_type),
+) -> List(#(effect_type, Int)) {
   model.buttons
   |> list.filter_map(fn(button) {
     case button.enabled {
-      True -> Ok(button.on_click)
+      True -> Ok(#(button.on_click, button.cost))
       False -> Error(0)
     }
   })
@@ -131,7 +140,7 @@ pub fn view_buttons(
       0.006 *. { float.square_root(button.height) |> result.unwrap(0.0) }
     scene.empty(
       id: "WorldButtonWrapper" <> int.to_string(index),
-      transform: transform.at(vec3.Vec3(button.x, button.y, 1.0))
+      transform: transform.at(vec3.Vec3(button.x, button.y, 5.0))
         |> transform.with_scale(vec3.Vec3(button.width, button.height, 1.0)),
       children: [
         scene.mesh(
