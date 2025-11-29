@@ -30,6 +30,7 @@ pub type Shot {
     colour: Int,
     start_time: Float,
     shot_type: ShotType,
+    damage: Int,
   )
 }
 
@@ -93,7 +94,7 @@ pub fn create_player_shots(
   let shots =
     points
     |> list.map(fn(point) {
-      Shot(point.x, point.y, point.direction, 0.0, colour, time, Player)
+      Shot(point.x, point.y, point.direction, 0.0, colour, time, Player, 2)
     })
     |> list.append(model.shots)
 
@@ -103,9 +104,10 @@ pub fn create_player_shots(
 pub fn create_shot(
   point: utils.PointWithDirection,
   colour: Int,
+  damage: Int,
   time: Float,
 ) -> Shot {
-  Shot(point.x, point.y, point.direction, 0.0, colour, time, Player)
+  Shot(point.x, point.y, point.direction, 0.0, colour, time, Player, damage)
 }
 
 pub fn create_enemy_shot(
@@ -115,7 +117,16 @@ pub fn create_enemy_shot(
   time: Float,
 ) {
   let new_shot =
-    Shot(point.x, point.y, point.direction, 0.0, 0xffffff, time, Enemy(texture))
+    Shot(
+      point.x,
+      point.y,
+      point.direction,
+      0.0,
+      0xffffff,
+      time,
+      Enemy(texture),
+      2,
+    )
   let shots = model.shots |> list.append([new_shot])
   ShotModel(shots)
 }

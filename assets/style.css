@@ -201,3 +201,7 @@ button:hover {
 .game-over-button {
     font-size: 40px;
 }
+
+.game-over-text {
+    font-size: 60px;
+}

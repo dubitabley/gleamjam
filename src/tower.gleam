@@ -45,7 +45,48 @@ pub type Cannon {
     initial_rotation: Float,
     rotation: Float,
     state: CannonState,
+    level: Int,
   )
+}
+
+pub fn get_cannon_level_cost(level: Int) -> Int {
+  case level {
+    1 -> 4
+    2 -> 9
+    3 -> 13
+    4 -> 20
+    _ -> level * 5
+  }
+}
+
+pub fn get_cannon_rotation(level: Int) -> Float {
+  case level {
+    1 -> 0.4
+    2 -> 0.6
+    3 -> 1.0
+    4 -> 2.0
+    _ -> maths.pi() *. 2.0
+  }
+}
+
+pub fn get_cannon_range(level: Int) -> Float {
+  case level {
+    1 -> 200.0
+    2 -> 300.0
+    3 -> 500.0
+    4 -> 600.0
+    _ -> int.to_float(level) *. 150.0
+  }
+}
+
+pub fn get_cannon_damage(level: Int) -> Int {
+  case level {
+    1 -> 1
+    2 -> 2
+    3 -> 4
+    4 -> 6
+    _ -> level * 2
+  }
 }
 
 pub type CannonState {
@@ -82,9 +123,10 @@ fn new_tower(x: Float, y: Float, id: Int) -> Tower {
 
 pub fn upgrade_tower(tower: Tower) -> Tower {
   case tower.cannon {
-    option.Some(_cannon) -> {
-      // upgrade the cannon power
-      tower
+    option.Some(cannon) -> {
+      // upgrade the cannon
+      let new_cannon = Cannon(..cannon, level: cannon.level + 1)
+      Tower(..tower, cannon: option.Some(new_cannon))
     }
     option.None -> {
       Tower(..tower, cannon: option.Some(new_cannon(tower)))
@@ -97,7 +139,7 @@ fn new_cannon(tower: Tower) -> Cannon {
   // position is offset from the tower
   let x = utils.sign(tower.x) *. 70.0
   let y = utils.sign(tower.y) *. 80.0
-  Cannon(x, y, rotation, rotation, CannonIdle)
+  Cannon(x, y, rotation, rotation, CannonIdle, 1)
 }
 
 pub fn set_tower_health(tower: Tower, health: Int) -> Tower {

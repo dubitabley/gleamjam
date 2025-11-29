@@ -210,13 +210,18 @@ fn add_tower_world_buttons(
   |> list.map(fn(tower) {
     let x = tower.x +. utils.sign(tower.x) *. 100.0
     let y = tower.y +. utils.sign(tower.y) *. 100.0
+    let next_level = case tower.cannon {
+      option.Some(cannon) -> cannon.level + 1
+      option.None -> 1
+    }
+    let level_cost = tower.get_cannon_level_cost(next_level)
     world_ui.Button(
       x,
       y,
       80.0,
       80.0,
       world_ui.ButtonText("+"),
-      5,
+      level_cost,
       False,
       UpgradeTower(TowerUpgradeInfo(tower.id)),
     )
@@ -361,11 +366,11 @@ fn check_enemy_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
   let towers =
     model.tower.towers
     |> list.filter_map(fn(tower) {
-      let collision_num =
+      let damage_num =
         tower_collisions
-        |> list.map(fn(collision) { collision.0 })
-        |> list.count(fn(coll) { coll == tower })
-      let new_health = tower.health - collision_num * 2
+        |> list.filter(fn(collision) { collision.0 == tower })
+        |> list.fold(0, fn(a, collision) { a + { collision.1 }.damage })
+      let new_health = tower.health - damage_num
       let tower = tower.set_tower_health(tower, new_health)
       case new_health > 0 {
         True -> Ok(tower)
@@ -433,11 +438,11 @@ fn check_player_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
   let enemies =
     model.enemies.enemies
     |> list.filter_map(fn(enemy) {
-      let collision_num =
+      let damage_num =
         collisions
-        |> list.map(fn(collision) { collision.0 })
-        |> list.count(fn(coll) { coll == enemy })
-      let new_health = enemy.health - collision_num * 2
+        |> list.filter(fn(collision) { collision.0 == enemy })
+        |> list.fold(0, fn(a, collision) { a + { collision.1 }.damage })
+      let new_health = enemy.health - damage_num
       let enemy = enemy.Enemy(..enemy, health: new_health)
       case new_health > 0 {
         True -> Ok(enemy)
@@ -507,6 +512,7 @@ fn tick_towers(
                   let cannon = tower.Cannon(..cannon, state: new_state)
                   let cannon_x = tower.x +. cannon.x
                   let cannon_y = tower.y +. cannon.y
+                  let cannon_damage = tower.get_cannon_damage(cannon.level)
                   let new_shot =
                     shot.create_shot(
                       utils.PointWithDirection(
@@ -515,6 +521,7 @@ fn tick_towers(
                         cannon.rotation,
                       ),
                       0xff0000,
+                      cannon_damage,
                       time,
                     )
                   #(tower.Tower(..tower, cannon: option.Some(cannon)), [
@@ -582,7 +589,7 @@ fn get_closest_enemy_cannon(
   |> list.fold(option.None, fn(accum, enemy) {
     // gotta be within a cone of the cannon's initial rotation
     // and within a certain distance
-    let range = 300.0
+    let range = tower.get_cannon_range(cannon.level)
     let distance = utils.hypot(enemy.y -. cannon_y, enemy.x -. cannon_x)
     case distance <=. range {
       True -> {
@@ -590,7 +597,8 @@ fn get_closest_enemy_cannon(
           maths.atan2(enemy.y -. cannon_y, enemy.x -. cannon_x)
         let angle_diff =
           { angle_towards -. cannon.initial_rotation } |> float.absolute_value()
-        case angle_diff <. 0.5 {
+        let cannon_max_rotation = tower.get_cannon_rotation(cannon.level)
+        case angle_diff <. cannon_max_rotation {
           True -> {
             case accum {
               option.Some(#(_, existing_distance)) -> {
@@ -654,7 +662,7 @@ pub fn view(
         transform: transform.at(position: vec3.Vec3(
           model.camera_position.x,
           model.camera_position.y,
-          20.0,
+          100.0,
         )),
         look_at: option.None,
         active: True,

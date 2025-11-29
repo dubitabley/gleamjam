@@ -571,7 +571,7 @@ pub fn view(
           scene.camera(
             id: "camera",
             camera: cam,
-            transform: transform.at(position: vec3.Vec3(0.0, 0.0, 20.0)),
+            transform: transform.at(position: vec3.Vec3(0.0, 0.0, 100.0)),
             look_at: option.None,
             active: True,
             viewport: option.None,
