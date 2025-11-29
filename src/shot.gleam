@@ -36,12 +36,13 @@ pub type Shot {
 
 pub type ShotType {
   Player
+  Tower
   Enemy(asset.Texture)
 }
 
 pub fn is_player(shot: Shot) -> Bool {
   case shot.shot_type {
-    Player -> True
+    Player | Tower -> True
     _ -> False
   }
 }
@@ -101,13 +102,13 @@ pub fn create_player_shots(
   ShotModel(shots)
 }
 
-pub fn create_shot(
+pub fn create_tower_shot(
   point: utils.PointWithDirection,
   colour: Int,
   damage: Int,
   time: Float,
 ) -> Shot {
-  Shot(point.x, point.y, point.direction, 0.0, colour, time, Player, damage)
+  Shot(point.x, point.y, point.direction, 0.0, colour, time, Tower, damage)
 }
 
 pub fn create_enemy_shot(
@@ -141,10 +142,15 @@ pub fn view(
     asset_cache
     |> asset.get_texture(loader.player_shot_asset)
     |> option.from_result()
+  let tower_shot_texture =
+    asset_cache
+    |> asset.get_texture(loader.diamond_asset)
+    |> option.from_result()
   let shots =
     list.index_map(model.shots, fn(shot, index) {
       let texture = case shot.shot_type {
         Player -> player_shot_texture
+        Tower -> tower_shot_texture
         Enemy(texture) -> option.Some(texture)
       }
       let assert Ok(material) =

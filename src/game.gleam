@@ -514,13 +514,13 @@ fn tick_towers(
                   let cannon_y = tower.y +. cannon.y
                   let cannon_damage = tower.get_cannon_damage(cannon.level)
                   let new_shot =
-                    shot.create_shot(
+                    shot.create_tower_shot(
                       utils.PointWithDirection(
                         cannon_x,
                         cannon_y,
                         cannon.rotation,
                       ),
-                      0xff0000,
+                      0xdddddd,
                       cannon_damage,
                       time,
                     )

@@ -137,8 +137,8 @@ pub fn upgrade_tower(tower: Tower) -> Tower {
 fn new_cannon(tower: Tower) -> Cannon {
   let rotation = maths.atan2(tower.y, tower.x)
   // position is offset from the tower
-  let x = utils.sign(tower.x) *. 70.0
-  let y = utils.sign(tower.y) *. 80.0
+  let x = utils.sign(tower.x) *. 40.0
+  let y = utils.sign(tower.y) *. 50.0
   Cannon(x, y, rotation, rotation, CannonIdle, 1)
 }
 
