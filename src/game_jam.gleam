@@ -24,7 +24,7 @@ import utils
 import vec/vec3
 
 pub type State {
-  Menu
+  Menu(controls_open: Bool)
   Loading(option.Option(asset.LoadProgress))
   Playing(playing_info: PlayingInfo, resume: Bool, points: Int)
   Paused(PlayingInfo, controls_open: Bool, points: Int)
@@ -72,18 +72,21 @@ fn init_ui(_flags) -> #(Model, ui_effect.Effect(Msg)) {
     loader.load_assets_menu()
     |> ui_effect.map(fn(loader_msg) { LoadMenuAssetInfo(loader_msg) })
   #(
-    Model(Menu),
+    Model(Menu(False)),
     ui_effect.batch([ui.register_lustre(), background_assets_effect]),
   )
 }
 
 fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
   case model.state, msg {
-    Menu, StartLoad | GameOver, StartLoad -> {
+    Menu(_), StartLoad | GameOver, StartLoad -> {
       let load_effect =
         loader.load_assets_game()
         |> ui_effect.map(fn(load_info) { LoadAssetInfo(load_info) })
       #(Model(state: Loading(option.None)), load_effect)
+    }
+    Menu(controls_open), ToggleControls -> {
+      #(Model(state: Menu(!controls_open)), ui_effect.none())
     }
     _, LoadMenuAssetInfo(load_state) -> {
       case load_state {
@@ -143,7 +146,7 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
       ui_effect.none(),
     )
     _, GameOverUi -> #(Model(state: GameOver), ui_effect.none())
-    _, BackToMenu -> #(Model(state: Menu), ui_effect.none())
+    _, BackToMenu -> #(Model(state: Menu(False)), ui_effect.none())
     _, StartLoad
     | _, StartWaveUi(_)
     | _, ChangeEnemies(_)
@@ -158,7 +161,7 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
 fn view_ui(model: Model) -> Element(Msg) {
   html.div([class("overlay")], [
     case model.state {
-      Menu -> menu_overlay()
+      Menu(controls_open) -> menu_overlay(controls_open)
       Loading(load_progress) -> loading_overlay(load_progress)
       Playing(playing_info, resuming, points) ->
         game_overlay(playing_info, resuming, points)
@@ -170,16 +173,26 @@ fn view_ui(model: Model) -> Element(Msg) {
   ])
 }
 
-fn menu_overlay() -> Element(Msg) {
+fn menu_overlay(controls_open: Bool) -> Element(Msg) {
   html.div([class("menu-wrapper")], [
     html.div([class("lucy-wrapper")], [
       html.img([class("lucy-menu"), attribute.src("lucy.webp")]),
     ]),
-    html.div([class("menu")], [
-      html.button([class("menu-button"), event.on_click(StartLoad)], [
-        html.text("Start Game"),
-      ]),
-    ]),
+    html.div(
+      [class("menu")],
+      [
+        html.button([class("menu-button"), event.on_click(StartLoad)], [
+          html.text("Start Game"),
+        ]),
+        controls_button(controls_open),
+      ]
+        |> list.append(case controls_open {
+          True -> [
+            controls_overlay(),
+          ]
+          False -> []
+        }),
+    ),
   ])
 }
 
@@ -281,21 +294,19 @@ fn paused_overlay(
   controls_open: Bool,
   points: Int,
 ) -> Element(Msg) {
-  let children = case controls_open {
-    True -> [
-      game_info(playing_info),
-      game_buttons(True, controls_open),
-      pause_info_overlay(),
-      controls_overlay(),
-      points_overlay(points),
-    ]
-    False -> [
+  let children =
+    [
       game_info(playing_info),
       game_buttons(True, controls_open),
       pause_info_overlay(),
       points_overlay(points),
     ]
-  }
+    |> list.append(case controls_open {
+      True -> [
+        controls_overlay(),
+      ]
+      False -> []
+    })
   html.div([], children)
 }
 
@@ -331,6 +342,12 @@ fn main_info_overlay(main_text: String, fade_out: Bool) -> Element(Msg) {
 fn controls_overlay() -> Element(Msg) {
   html.div([class("controls-overlay-wrapper")], [
     html.div([class("controls-overlay")], [
+      html.div([class("controls-close-button-wrapper")], [
+        html.button(
+          [class("controls-close-button"), event.on_click(ToggleControls)],
+          [html.text("x")],
+        ),
+      ]),
       html.h2([], [html.text("Game")]),
       html.div([], [html.text("Defend your diamond towers!")]),
       html.br([]),

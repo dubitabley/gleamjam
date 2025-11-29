@@ -284,7 +284,9 @@ fn game_loop(
     utils.Rectangle(player_model.x, player_model.y, player.size, player.size)
   let world_ui =
     world_ui.check_player_enabled(model.world_ui, model.points, player_rect)
-  let interact = input.is_key_pressed(ctx.input, input.Enter)
+  let interact =
+    input.is_key_just_pressed(ctx.input, input.Enter)
+    || input.is_key_just_pressed(ctx.input, input.Space)
   let #(effects, costs) =
     case interact {
       True -> world_ui.get_effect_collisions(world_ui)

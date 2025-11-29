@@ -69,6 +69,8 @@ button:hover {
 
 .menu {
     display: flex;
+    flex-direction: column;
+    gap: 30px;
     align-items: center;
     justify-content: center;
     width: 100%;
@@ -77,7 +79,6 @@ button:hover {
 
 .menu-button {
     font-size: 40px;
-    z-index: 2;
 }
 
 .game-info-wrapper {
@@ -152,11 +153,31 @@ button:hover {
     opacity: 90%;
     padding: 20px;
     color: var(--black);
+    pointer-events: visible;
 }
 
 .controls-overlay > h2 {
     text-align: center;
     font-size: 30px;
+}
+
+.controls-close-button-wrapper {
+    position: relative;
+}
+
+.controls-close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 40px;
+    border: 0px;
+    background-color: var(--charcoal);
+    color: var(--blue);
+}
+
+.controls-close-button:hover {
+    background-color: var(--pink-colour);
+    color: var(--charcoal);
 }
 
 .points-info-wrapper {
