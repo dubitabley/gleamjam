@@ -1,11 +1,13 @@
 // stuff for handling the player
 import gleam/list
 import gleam/option
+import gleam_community/maths
 import health_bar
 import loader
 import tiramisu/asset
 import tiramisu/geometry
 import tiramisu/material
+import tiramisu/particle_emitter
 import tiramisu/scene
 import tiramisu/transform
 import utils
@@ -26,9 +28,15 @@ pub type PlayerModel {
     x: Float,
     y: Float,
     health: Int,
+    moving: Moving,
     shot_time: Float,
     shot_colour: ShotColour,
   )
+}
+
+pub type Moving {
+  Idle(option.Option(Float))
+  Moving(Float)
 }
 
 // rainbow!
@@ -71,13 +79,22 @@ pub type Movement {
 }
 
 pub fn init() -> PlayerModel {
-  PlayerModel(0.0, 0.0, max_health, 0.0, Red)
+  PlayerModel(0.0, 0.0, max_health, Idle(option.None), 0.0, Red)
 }
 
-pub fn move(model: PlayerModel, movement: Movement) -> PlayerModel {
+pub fn set_move(model: PlayerModel, movement: Movement) -> PlayerModel {
   let x = add_input(model.x, movement.left, movement.right, speed)
   let y = add_input(model.y, movement.up, movement.down, speed)
-  PlayerModel(..model, x: x, y: y)
+  let moving = case x == model.x && y == model.y {
+    False -> Moving(maths.atan2(model.y -. y, model.x -. x))
+    True -> {
+      case model.moving {
+        Idle(_) -> model.moving
+        Moving(direction) -> Idle(option.Some(direction))
+      }
+    }
+  }
+  PlayerModel(..model, x: x, y: y, moving: moving)
 }
 
 pub fn can_make_shot(model: PlayerModel, time: Float) -> Bool {
@@ -124,6 +141,40 @@ fn add_input(val: Float, neg: Bool, pos: Bool, offset: Float) -> Float {
   }
 }
 
+fn get_rainbow_particles(direction: Float, active: Bool) {
+  let #(velocity, vel_var, rate) = case active {
+    True -> #(
+      vec3.Vec3(
+        maths.cos(direction) *. 200.0,
+        maths.sin(direction) *. 200.0,
+        0.0,
+      ),
+      vec3.Vec3(50.0, 50.0, 0.0),
+      500.0,
+    )
+    False -> #(vec3.splat(0.0), vec3.splat(0.0), 0.001)
+  }
+
+  let assert Ok(particles) =
+    particle_emitter.new()
+    |> particle_emitter.rate(rate)
+    |> particle_emitter.lifetime(0.6)
+    |> particle_emitter.velocity(velocity)
+    |> particle_emitter.velocity_variance(vel_var)
+    |> particle_emitter.color(0xff0000)
+    |> particle_emitter.fade_to(0x00ffff)
+    |> particle_emitter.size(3.0)
+    |> particle_emitter.gravity(0.0)
+    |> particle_emitter.build()
+  scene.particles(
+    id: "PlayerParticles",
+    emitter: particles,
+    transform: transform.at(vec3.Vec3(0.0, 0.0, 0.0))
+      |> transform.with_scale(vec3.Vec3(10.0, 10.0, 1.0)),
+    active: True,
+  )
+}
+
 pub fn view(
   player: PlayerModel,
   asset_cache: asset.AssetCache,
@@ -139,6 +190,17 @@ pub fn view(
         |> asset.get_texture(loader.lucy_asset)
         |> option.from_result(),
     )
+
+  let #(direction, active) = case player.moving {
+    Moving(direction) -> #(direction, True)
+    Idle(old_direction) ->
+      case old_direction {
+        option.Some(old_dir) -> #(old_dir, False)
+        option.None -> #(0.0, False)
+      }
+  }
+  let rainbow_particles = [get_rainbow_particles(direction, active)]
+
   scene.empty(
     id: "PlayerGroup",
     transform: transform.at(position: vec3.Vec3(player.x, player.y, 10.0)),
@@ -157,6 +219,7 @@ pub fn view(
         position: vec3.Vec3(1.0, 60.0, 1.0),
         width: 15.0,
       ),
-    ],
+    ]
+      |> list.append(rainbow_particles),
   )
 }

@@ -258,7 +258,7 @@ fn game_loop(
   let right = input.is_key_pressed(ctx.input, input.KeyD)
 
   let player_movement = player.Keys(up, down, left, right)
-  let player_model = player.move(model.player, player_movement)
+  let player_model = player.set_move(model.player, player_movement)
 
   let shoot = input.is_key_pressed(ctx.input, input.Space)
   let #(shot_model, player_model) = case
