@@ -303,11 +303,17 @@ fn game_loop(
   let new_points = model.points - total_cost
   let points_ui_effect =
     effect.from(fn(dispatch) { dispatch(UpdateGui(UpdatePoints(new_points))) })
+
+  let #(towers, tower_shots) =
+    tick_towers(model.tower.towers, enemy_model.enemies, model.time)
+  let shot_model = shot.ShotModel(shot_model.shots |> list.append(tower_shots))
+  let tower_model = tower.TowerModel(towers)
   let new_time = model.time +. ctx.delta_time /. 1000.0
 
   let model =
     Model(
       ..model,
+      tower: tower_model,
       enemies: enemy_model,
       player: player_model,
       camera_position: vec2.Vec2(player_model.x, player_model.y),
@@ -474,6 +480,135 @@ fn check_player_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
     ),
     effect,
   )
+}
+
+fn tick_towers(
+  towers: List(tower.Tower),
+  enemies: List(enemy.Enemy),
+  time: Float,
+) -> #(List(tower.Tower), List(shot.Shot)) {
+  let #(towers, shots) =
+    towers
+    |> list.map(fn(tower) {
+      case tower.cannon {
+        option.Some(cannon) -> {
+          case cannon.state {
+            tower.CannonIdle -> {
+              let new_state = choose_new_cannon_state(tower, cannon, enemies)
+              let cannon = tower.Cannon(..cannon, state: new_state)
+              #(tower.Tower(..tower, cannon: option.Some(cannon)), [])
+            }
+            tower.CannonRotating(target_rotation) -> {
+              let angle_diff = target_rotation -. cannon.rotation
+              let abs_angle_diff = angle_diff |> float.absolute_value()
+              case abs_angle_diff <. 0.05 {
+                True -> {
+                  let new_state = tower.CannonShooting(time)
+                  let cannon = tower.Cannon(..cannon, state: new_state)
+                  let cannon_x = tower.x +. cannon.x
+                  let cannon_y = tower.y +. cannon.y
+                  let new_shot =
+                    shot.create_shot(
+                      utils.PointWithDirection(
+                        cannon_x,
+                        cannon_y,
+                        cannon.rotation,
+                      ),
+                      0xff0000,
+                      time,
+                    )
+                  #(tower.Tower(..tower, cannon: option.Some(cannon)), [
+                    new_shot,
+                  ])
+                }
+                False -> {
+                  // rotate towards
+                  let rotation = case angle_diff <. 0.05 {
+                    True -> cannon.rotation -. 0.05
+                    False -> cannon.rotation +. 0.05
+                  }
+                  let cannon = tower.Cannon(..cannon, rotation: rotation)
+                  #(tower.Tower(..tower, cannon: option.Some(cannon)), [])
+                }
+              }
+            }
+            tower.CannonShooting(start_time) -> {
+              case time >. { start_time +. 1.0 } {
+                True -> {
+                  let new_state =
+                    choose_new_cannon_state(tower, cannon, enemies)
+                  let cannon = tower.Cannon(..cannon, state: new_state)
+                  #(tower.Tower(..tower, cannon: option.Some(cannon)), [])
+                }
+                False -> #(tower, [])
+              }
+            }
+          }
+        }
+        option.None -> #(tower, [])
+      }
+    })
+    |> list.unzip()
+
+  #(towers, shots |> list.flatten())
+}
+
+fn choose_new_cannon_state(
+  tower: tower.Tower,
+  cannon: tower.Cannon,
+  enemies: List(enemy.Enemy),
+) {
+  case get_closest_enemy_cannon(tower, cannon, enemies) {
+    option.Some(enemy) -> {
+      let cannon_x = cannon.x +. tower.x
+      let cannon_y = cannon.y +. tower.y
+
+      // get angle we should be at
+      let target_angle = maths.atan2(enemy.y -. cannon_y, enemy.x -. cannon_x)
+      tower.CannonRotating(target_angle)
+    }
+    option.None -> tower.CannonIdle
+  }
+}
+
+fn get_closest_enemy_cannon(
+  tower: tower.Tower,
+  cannon: tower.Cannon,
+  enemies: List(enemy.Enemy),
+) -> option.Option(enemy.Enemy) {
+  let cannon_x = tower.x +. cannon.x
+  let cannon_y = tower.y +. cannon.y
+  enemies
+  |> list.fold(option.None, fn(accum, enemy) {
+    // gotta be within a cone of the cannon's initial rotation
+    // and within a certain distance
+    let range = 300.0
+    let distance = utils.hypot(enemy.y -. cannon_y, enemy.x -. cannon_x)
+    case distance <=. range {
+      True -> {
+        let angle_towards =
+          maths.atan2(enemy.y -. cannon_y, enemy.x -. cannon_x)
+        let angle_diff =
+          { angle_towards -. cannon.initial_rotation } |> float.absolute_value()
+        case angle_diff <. 0.5 {
+          True -> {
+            case accum {
+              option.Some(#(_, existing_distance)) -> {
+                case distance <. existing_distance {
+                  True -> option.Some(#(enemy, distance))
+                  False -> accum
+                }
+              }
+              option.None -> option.Some(#(enemy, distance))
+            }
+          }
+          False -> accum
+        }
+      }
+      False -> accum
+    }
+  })
+  |> option.map(fn(value) { value.0 })
 }
 
 fn check_collision_tower_shot(tower: tower.Tower, shot: shot.Shot) -> Bool {

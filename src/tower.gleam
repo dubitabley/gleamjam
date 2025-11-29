@@ -39,7 +39,22 @@ pub type Tower {
 }
 
 pub type Cannon {
-  Cannon(x: Float, y: Float, rotation: Float)
+  Cannon(
+    x: Float,
+    y: Float,
+    initial_rotation: Float,
+    rotation: Float,
+    state: CannonState,
+  )
+}
+
+pub type CannonState {
+  /// Don't have anything to do, just idle
+  CannonIdle
+  /// Rotate towards the enemy
+  CannonRotating(target_rotation: Float)
+  /// Shooting, waiting for next shot
+  CannonShooting(start_wait_time: Float)
 }
 
 pub type Decoration {
@@ -82,7 +97,7 @@ fn new_cannon(tower: Tower) -> Cannon {
   // position is offset from the tower
   let x = utils.sign(tower.x) *. 70.0
   let y = utils.sign(tower.y) *. 80.0
-  Cannon(x, y, rotation)
+  Cannon(x, y, rotation, rotation, CannonIdle)
 }
 
 pub fn set_tower_health(tower: Tower, health: Int) -> Tower {

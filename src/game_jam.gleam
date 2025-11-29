@@ -60,7 +60,7 @@ pub fn main() -> Nil {
     |> lustre.start("#app", Nil)
   tiramisu.run(
     dimensions: option.None,
-    background: background.Color(0x1a1a2e),
+    background: background.Color(0x131323),
     init: init,
     update: update,
     view: view,
@@ -275,7 +275,7 @@ fn play_button(paused: Bool) -> Element(Msg) {
 fn game_over_overlay() -> Element(Msg) {
   html.div([class("main-info-wrapper")], [
     html.div([class("game-over-button-wrapper")], [
-      html.h1([], [html.text("Game Over!")]),
+      html.h1([class("game-over-text")], [html.text("Game Over!")]),
       html.button([class("game-over-button"), event.on_click(BackToMenu)], [
         html.text("Back to Menu"),
       ]),

@@ -100,6 +100,14 @@ pub fn create_player_shots(
   ShotModel(shots)
 }
 
+pub fn create_shot(
+  point: utils.PointWithDirection,
+  colour: Int,
+  time: Float,
+) -> Shot {
+  Shot(point.x, point.y, point.direction, 0.0, colour, time, Player)
+}
+
 pub fn create_enemy_shot(
   model: ShotModel,
   point: utils.PointWithDirection,
