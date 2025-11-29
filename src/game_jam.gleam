@@ -28,7 +28,7 @@ pub type State {
   Loading(option.Option(asset.LoadProgress))
   Playing(playing_info: PlayingInfo, resume: Bool, points: Int)
   Paused(PlayingInfo, controls_open: Bool, points: Int)
-  WaveComplete(wave_num: Int, points: Int)
+  WaveComplete(wave_num: Int, points: Int, controls_open: Bool)
   GameOver
 }
 
@@ -109,11 +109,11 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
       }
     }
     Playing(_, _, points), WaveCompleteUi(wave_num) -> #(
-      Model(state: WaveComplete(wave_num, points)),
+      Model(state: WaveComplete(wave_num, points, False)),
       ui_effect.none(),
     )
     Playing(_, _, points), StartWaveUi(new_info)
-    | WaveComplete(_, points), StartWaveUi(new_info)
+    | WaveComplete(_, points, _), StartWaveUi(new_info)
     -> {
       #(Model(state: Playing(new_info, False, points)), ui_effect.none())
     }
@@ -133,6 +133,10 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
       Model(state: Paused(info, bool.negate(controls_open), points)),
       ui_effect.none(),
     )
+    WaveComplete(wave_num, points, controls_open), ToggleControls -> #(
+      Model(state: WaveComplete(wave_num, points, controls_open: !controls_open)),
+      ui_effect.none(),
+    )
     Playing(info, resume, _), UpdatePointsUi(points) -> #(
       Model(state: Playing(info, resume, points)),
       ui_effect.none(),
@@ -141,8 +145,8 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
       Model(state: Paused(info, controls_open, points)),
       ui_effect.none(),
     )
-    WaveComplete(wave_num, _), UpdatePointsUi(points) -> #(
-      Model(state: WaveComplete(wave_num, points)),
+    WaveComplete(wave_num, _, controls_open), UpdatePointsUi(points) -> #(
+      Model(state: WaveComplete(wave_num, points, controls_open)),
       ui_effect.none(),
     )
     _, GameOverUi -> #(Model(state: GameOver), ui_effect.none())
@@ -167,7 +171,8 @@ fn view_ui(model: Model) -> Element(Msg) {
         game_overlay(playing_info, resuming, points)
       Paused(playing_info, controls_open, points) ->
         paused_overlay(playing_info, controls_open, points)
-      WaveComplete(wave_num, points) -> wave_over_overlay(wave_num, points)
+      WaveComplete(wave_num, points, controls_open) ->
+        wave_over_overlay(wave_num, points, controls_open)
       GameOver -> game_over_overlay()
     },
   ])
@@ -310,11 +315,25 @@ fn paused_overlay(
   html.div([], children)
 }
 
-fn wave_over_overlay(wave_num: Int, points: Int) -> Element(Msg) {
-  html.div([], [
-    main_info_overlay("Completed wave " <> int.to_string(wave_num), True),
-    points_overlay(points),
-  ])
+fn wave_over_overlay(
+  wave_num: Int,
+  points: Int,
+  controls_open: Bool,
+) -> Element(Msg) {
+  html.div(
+    [],
+    [
+      main_info_overlay("Completed wave " <> int.to_string(wave_num), True),
+      points_overlay(points),
+      html.div([class("game-button-wrapper")], [controls_button(controls_open)]),
+    ]
+      |> list.append(case controls_open {
+        True -> [
+          controls_overlay(),
+        ]
+        False -> []
+      }),
+  )
 }
 
 fn wave_start_overlay(wave_num: Int) -> Element(Msg) {
@@ -353,14 +372,17 @@ fn controls_overlay() -> Element(Msg) {
       html.br([]),
       html.div([], [
         html.text("Use WASD to move around, press space to fire at the enemies"),
+        html.br([]),
       ]),
       html.div([], [
         html.text(
           "Use Enter to activate the buttons in world. Some of them cost points to activate. ",
         ),
+        html.br([]),
         html.text(
           "You gain points from destroying enemies and completing waves. Check them in the top left",
         ),
+        html.br([]),
       ]),
     ]),
   ])
