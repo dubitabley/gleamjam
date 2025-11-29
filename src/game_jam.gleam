@@ -345,7 +345,7 @@ fn controls_overlay() -> Element(Msg) {
       html.div([class("controls-close-button-wrapper")], [
         html.button(
           [class("controls-close-button"), event.on_click(ToggleControls)],
-          [html.text("x")],
+          [html.img([class("close-button"), attribute.src("close_icon.svg")])],
         ),
       ]),
       html.h2([], [html.text("Game")]),
@@ -355,7 +355,12 @@ fn controls_overlay() -> Element(Msg) {
         html.text("Use WASD to move around, press space to fire at the enemies"),
       ]),
       html.div([], [
-        html.text("Use Enter to activate the buttons in world"),
+        html.text(
+          "Use Enter to activate the buttons in world. Some of them cost points to activate. ",
+        ),
+        html.text(
+          "You gain points from destroying enemies and completing waves. Check them in the top left",
+        ),
       ]),
     ]),
   ])

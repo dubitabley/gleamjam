@@ -180,6 +180,11 @@ button:hover {
     color: var(--charcoal);
 }
 
+.close-button {
+    width: 30px;
+    height: 30px;
+}
+
 .points-info-wrapper {
     position: absolute;
     left: 10px;

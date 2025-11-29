@@ -5,6 +5,10 @@ Using [tiramisu](https://hexdocs.pm/tiramisu/) because it seems neat and i've us
 
 ## Development
 
+Run locally via the following:
+
 ```sh
 gleam run -m lustre/dev start
 ```
+
+Or view the game at https://gleamjam.dubitable.xyz

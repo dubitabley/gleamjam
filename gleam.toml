@@ -35,3 +35,4 @@ stylesheets = [
   { content = "body { margin: 0; padding: 0; overflow: hidden; }" },
   { href = "style.css" }
 ]
+title = "Gleam Jam!"
