@@ -19,9 +19,9 @@ import vec/vec3
 
 const boss_texture_num = 2
 
-pub const replication_time = 1.0
+pub const replication_time = 0.5
 
-const max_boss_health = 60
+const max_boss_health = 120
 
 pub const max_blast_distance = 400.0
 
@@ -83,11 +83,10 @@ pub fn should_check_damage(
 
 pub fn replication_health_stage(health: Int) -> Int {
   case health {
-    health if health <= max_boss_health && health > 40 -> 1
-    health if health <= 40 && health > 30 -> 2
-    health if health <= 30 && health > 20 -> 3
-    health if health <= 20 && health >= 10 -> 4
-    _ -> 5
+    health if health <= max_boss_health && health > 80 -> 1
+    health if health <= 80 && health > 60 -> 2
+    health if health <= 60 && health > 40 -> 3
+    _ -> 4
   }
 }
 

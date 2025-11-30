@@ -95,7 +95,7 @@ pub fn init(
       enemies: enemy_model,
       boss: option.None,
       asset_cache: asset_cache,
-      wave_info: WaveEnd(0),
+      wave_info: WaveEnd(4),
       world_ui: world_ui.init(),
       points: 0,
     ),
@@ -332,7 +332,7 @@ fn game_loop(
     effect.from(fn(dispatch) { dispatch(UpdateGui(UpdatePoints(new_points))) })
 
   let #(towers, tower_shots) =
-    tick_towers(model.tower.towers, enemy_model.enemies, model.time)
+    tick_towers(model.tower.towers, enemy_model.enemies, model.boss, model.time)
   let shot_model = shot.ShotModel(shot_model.shots |> list.append(tower_shots))
   let tower_model = tower.TowerModel(towers)
 
@@ -368,6 +368,51 @@ fn game_loop(
                   boss.blast_width,
                   boss.blast_height,
                 )
+              let #(towers, hits) =
+                tower_model.towers
+                |> list.map(fn(tower) {
+                  let tower_rect =
+                    utils.Rectangle(
+                      tower.x,
+                      tower.y,
+                      tower.tower_width,
+                      tower.tower_height,
+                    )
+                  case
+                    utils.check_collision_rotated_rectangles(
+                      blast_rect,
+                      blast_angle,
+                      tower_rect,
+                      0.0,
+                    )
+                  {
+                    True -> {
+                      let new_health = tower.health - boss.blast_damage
+                      let tower = tower.set_tower_health(tower, new_health)
+                      case new_health <= 0 {
+                        True -> #(option.None, True)
+                        False -> #(option.Some(tower), True)
+                      }
+                    }
+                    False -> #(option.Some(tower), True)
+                  }
+                })
+                |> list.unzip()
+
+              let tower_hit =
+                hits |> list.fold(False, fn(accum, val) { accum || val })
+
+              let towers =
+                towers
+                |> list.filter_map(fn(x) {
+                  case x {
+                    option.Some(x) -> Ok(x)
+                    option.None -> Error(0)
+                  }
+                })
+
+              let tower_model = tower.TowerModel(towers)
+
               let player_rect =
                 utils.Rectangle(
                   player_model.x,
@@ -404,12 +449,34 @@ fn game_loop(
                   }
                   #(option.Some(new_boss), tower_model, player_model, effect)
                 }
-                False -> #(
-                  option.Some(new_boss),
-                  tower_model,
-                  player_model,
-                  effect.none(),
-                )
+                False -> {
+                  case tower_hit {
+                    True -> {
+                      let new_boss_state =
+                        boss.Blasting(
+                          start_time,
+                          animation,
+                          animation_state,
+                          blast_angle,
+                          option.Some(model.time),
+                        )
+                      let new_boss =
+                        boss.Model(..new_boss, state: new_boss_state)
+                      #(
+                        option.Some(new_boss),
+                        tower_model,
+                        player_model,
+                        effect.none(),
+                      )
+                    }
+                    False -> #(
+                      option.Some(new_boss),
+                      tower_model,
+                      player_model,
+                      effect.none(),
+                    )
+                  }
+                }
               }
             }
             False -> #(
@@ -553,7 +620,11 @@ fn new_boss_state(
   case stage > boss_model.stage {
     True -> {
       let boss_model = boss.replicate(boss_model)
-      boss.Model(..boss_model, state: boss.Replicating(time))
+      boss.Model(
+        ..boss_model,
+        stage: boss_model.stage + 1,
+        state: boss.Replicating(time),
+      )
     }
     False -> {
       // just start blasting if we're close enough
@@ -818,6 +889,7 @@ fn check_player_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
 fn tick_towers(
   towers: List(tower.Tower),
   enemies: List(enemy.Enemy),
+  boss_model: option.Option(boss.Model),
   time: Float,
 ) -> #(List(tower.Tower), List(shot.Shot)) {
   let #(towers, shots) =
@@ -827,7 +899,8 @@ fn tick_towers(
         option.Some(cannon) -> {
           case cannon.state {
             tower.CannonIdle -> {
-              let new_state = choose_new_cannon_state(tower, cannon, enemies)
+              let new_state =
+                choose_new_cannon_state(tower, cannon, enemies, boss_model)
               let cannon = tower.Cannon(..cannon, state: new_state)
               #(tower.Tower(..tower, cannon: option.Some(cannon)), [])
             }
@@ -871,7 +944,7 @@ fn tick_towers(
               case time >. { start_time +. 1.0 } {
                 True -> {
                   let new_state =
-                    choose_new_cannon_state(tower, cannon, enemies)
+                    choose_new_cannon_state(tower, cannon, enemies, boss_model)
                   let cannon = tower.Cannon(..cannon, state: new_state)
                   #(tower.Tower(..tower, cannon: option.Some(cannon)), [])
                 }
@@ -892,6 +965,7 @@ fn choose_new_cannon_state(
   tower: tower.Tower,
   cannon: tower.Cannon,
   enemies: List(enemy.Enemy),
+  boss_model: option.Option(boss.Model),
 ) {
   case get_closest_enemy_cannon(tower, cannon, enemies) {
     option.Some(enemy) -> {
@@ -902,7 +976,45 @@ fn choose_new_cannon_state(
       let target_angle = maths.atan2(enemy.y -. cannon_y, enemy.x -. cannon_x)
       tower.CannonRotating(target_angle)
     }
-    option.None -> tower.CannonIdle
+    option.None -> {
+      case boss_model {
+        option.Some(boss_model) -> {
+          case check_cannon_boss(tower, cannon, boss_model) {
+            True -> {
+              let cannon_x = cannon.x +. tower.x
+              let cannon_y = cannon.y +. tower.y
+              let target_angle =
+                maths.atan2(boss_model.y -. cannon_y, boss_model.x -. cannon_x)
+              tower.CannonRotating(target_angle)
+            }
+            False -> tower.CannonIdle
+          }
+        }
+        option.None -> tower.CannonIdle
+      }
+    }
+  }
+}
+
+fn check_cannon_boss(
+  tower: tower.Tower,
+  cannon: tower.Cannon,
+  boss_model: boss.Model,
+) -> Bool {
+  let cannon_x = tower.x +. cannon.x
+  let cannon_y = tower.y +. cannon.y
+  let range = tower.get_cannon_range(cannon.level)
+  let distance = utils.hypot(boss_model.y -. cannon_y, boss_model.x -. cannon_x)
+  case distance <=. range {
+    True -> {
+      let angle_towards =
+        maths.atan2(boss_model.y -. cannon_y, boss_model.x -. cannon_x)
+      let angle_diff =
+        { angle_towards -. cannon.initial_rotation } |> float.absolute_value()
+      let cannon_max_rotation = tower.get_cannon_rotation(cannon.level)
+      angle_diff <. cannon_max_rotation
+    }
+    False -> False
   }
 }
 
