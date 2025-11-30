@@ -99,7 +99,7 @@ pub fn tick(
           let move_speed = 2.0
           let enemy = case distance <=. move_speed {
             True -> {
-              let new_state = choose_state(enemy, towers, player, time)
+              let new_state = choose_state(enemy, towers, player)
               Enemy(..enemy, x: x, y: y, state: new_state)
             }
             False -> {
@@ -113,7 +113,7 @@ pub fn tick(
         Idle(start_time, wait_time) -> {
           let enemy = case time >. start_time +. wait_time {
             True -> {
-              let new_state = choose_state(enemy, towers, player, time)
+              let new_state = choose_state(enemy, towers, player)
               Enemy(..enemy, state: new_state)
             }
             False -> enemy
@@ -145,7 +145,6 @@ fn choose_state(
   enemy: Enemy,
   towers: tower.TowerModel,
   player: player.PlayerModel,
-  time: Float,
 ) -> State {
   let distance_to_player = utils.hypot(enemy.y -. player.y, enemy.x -. player.x)
   case distance_to_player <. shoot_distance {
@@ -189,7 +188,19 @@ fn choose_state(
 
           Moving(x: new_x, y: new_y)
         }
-        _, option.None -> Idle(time, idle_delay)
+        _, option.None -> {
+          // move towards player
+          let angle =
+            maths.atan2(player.y -. enemy.y, player.x -. enemy.x)
+            +. { float.random() *. 1.0 -. 0.5 }
+
+          let move_distance = float.random() *. 100.0 +. 100.0
+
+          let new_x = enemy.x +. move_distance *. maths.cos(angle)
+          let new_y = enemy.y +. move_distance *. maths.sin(angle)
+
+          Moving(x: new_x, y: new_y)
+        }
       }
     }
   }

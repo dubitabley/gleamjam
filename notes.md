@@ -36,7 +36,6 @@ Minor nitpicks:
 - potentially add way to rotate lucy
 - sound effects
 - make towers look nicer
-- final boss (wave 5?)
 
 done:
 
@@ -56,3 +55,4 @@ done:
 - game over screen
 - background
 - upgrades to tower
+- final boss (wave 5?)
