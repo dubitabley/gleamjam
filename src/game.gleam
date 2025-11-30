@@ -1,3 +1,4 @@
+import boss
 import enemy
 import gleam/bool
 import gleam/float
@@ -14,6 +15,7 @@ import tiramisu/effect.{type Effect}
 import tiramisu/input
 import tiramisu/light
 import tiramisu/scene
+import tiramisu/spritesheet
 import tiramisu/transform
 import tower
 import utils
@@ -28,6 +30,7 @@ pub type Model {
     tower: tower.TowerModel,
     shots: shot.ShotModel,
     enemies: enemy.EnemyModel,
+    boss: option.Option(boss.Model),
     camera_position: vec2.Vec2(Float),
     asset_cache: asset.AssetCache,
     wave_info: WaveInfo,
@@ -45,6 +48,7 @@ pub type Msg {
   GameMsg(GameMsgType)
   UpdateGui(UpdateGuiInfo)
   GameOver
+  WinGame
 }
 
 pub type GameMsgType {
@@ -89,6 +93,7 @@ pub fn init(
       camera_position: vec2.Vec2(0.0, 0.0),
       shots: shot_model,
       enemies: enemy_model,
+      boss: option.None,
       asset_cache: asset_cache,
       wave_info: WaveEnd(0),
       world_ui: world_ui.init(),
@@ -123,7 +128,8 @@ pub fn update(
       let assert WaveEnd(current_wave) = model.wave_info
       let new_wave = current_wave + 1
       // add enemies as appropriate
-      let enemy_model = start_wave(new_wave, model.time)
+      let #(enemy_model, boss_model) = start_wave(new_wave, model.time)
+
       // update gui
       let enemy_count = list.length(enemy_model.enemies)
       let new_wave_info = NewWaveUi(new_wave, enemy_count)
@@ -131,6 +137,7 @@ pub fn update(
         Model(
           ..model,
           enemies: enemy_model,
+          boss: boss_model,
           wave_info: OngoingWave(new_wave),
           world_ui: world_ui.init(),
         ),
@@ -228,15 +235,30 @@ fn add_tower_world_buttons(
   })
 }
 
-fn start_wave(wave_num: Int, time: Float) -> enemy.EnemyModel {
-  let enemy_count = wave_num * wave_num
+fn start_wave(
+  wave_num: Int,
+  time: Float,
+) -> #(enemy.EnemyModel, option.Option(boss.Model)) {
+  let enemy_count = case wave_num {
+    1 -> 2
+    2 -> 5
+    3 -> 9
+    4 -> 14
+    5 -> 7
+    _ -> wave_num * wave_num
+  }
   let new_enemies =
     list.range(0, enemy_count - 1)
     |> list.map(fn(index) {
       let #(x, y) = get_enemy_position(index, enemy_count)
       enemy.create_enemy(x, y, time)
     })
-  enemy.EnemyModel(enemies: new_enemies)
+
+  let boss = case wave_num >= 5 {
+    True -> option.Some(boss.init())
+    False -> option.None
+  }
+  #(enemy.EnemyModel(enemies: new_enemies), boss)
 }
 
 fn get_enemy_position(index: Int, total: Int) -> #(Float, Float) {
@@ -313,6 +335,97 @@ fn game_loop(
     tick_towers(model.tower.towers, enemy_model.enemies, model.time)
   let shot_model = shot.ShotModel(shot_model.shots |> list.append(tower_shots))
   let tower_model = tower.TowerModel(towers)
+
+  // this is atrocious, i really should've used messages for more of this to avoid this spaghetti
+  let #(boss_model, tower_model, player_model, boss_effect) = case model.boss {
+    option.Some(boss_model) -> {
+      let new_boss =
+        tick_boss_state(boss_model, tower_model, player_model, model.time)
+      case new_boss.state {
+        boss.Dying(dying_start_time)
+          if model.time >. dying_start_time +. boss.dying_time
+        -> {
+          #(
+            option.Some(new_boss),
+            tower_model,
+            player_model,
+            effect.from(fn(dispatch) { dispatch(WinGame) }),
+          )
+        }
+        boss.Blasting(
+          start_time,
+          animation,
+          animation_state,
+          blast_angle,
+          last_damage_time,
+        ) -> {
+          case boss.should_check_damage(model.time, last_damage_time) {
+            True -> {
+              let blast_rect =
+                utils.Rectangle(
+                  boss_model.x,
+                  boss_model.y,
+                  boss.blast_width,
+                  boss.blast_height,
+                )
+              let player_rect =
+                utils.Rectangle(
+                  player_model.x,
+                  player_model.y,
+                  player.size,
+                  player.size,
+                )
+              case
+                utils.check_collision_rotated_rectangles(
+                  blast_rect,
+                  blast_angle,
+                  player_rect,
+                  0.0,
+                )
+              {
+                True -> {
+                  let new_boss_state =
+                    boss.Blasting(
+                      start_time,
+                      animation,
+                      animation_state,
+                      blast_angle,
+                      option.Some(model.time),
+                    )
+                  let new_boss = boss.Model(..new_boss, state: new_boss_state)
+                  let player_health = model.player.health - boss.blast_damage
+                  let player_model =
+                    player.PlayerModel(..player_model, health: player_health)
+
+                  // AAAAAAAAAAAAAAAAAAAAA
+                  let effect = case player_health <= 0 {
+                    True -> effect.from(fn(dispatch) { dispatch(GameOver) })
+                    False -> effect.none()
+                  }
+                  #(option.Some(new_boss), tower_model, player_model, effect)
+                }
+                False -> #(
+                  option.Some(new_boss),
+                  tower_model,
+                  player_model,
+                  effect.none(),
+                )
+              }
+            }
+            False -> #(
+              option.Some(new_boss),
+              tower_model,
+              player_model,
+              effect.none(),
+            )
+          }
+        }
+        _ -> #(option.Some(new_boss), tower_model, player_model, effect.none())
+      }
+    }
+    option.None -> #(model.boss, tower_model, player_model, effect.none())
+  }
+
   let new_time = model.time +. ctx.delta_time /. 1000.0
 
   let model =
@@ -323,6 +436,7 @@ fn game_loop(
       player: player_model,
       camera_position: vec2.Vec2(player_model.x, player_model.y),
       shots: shot_model,
+      boss: boss_model,
       time: new_time,
       points: new_points,
       world_ui: world_ui,
@@ -337,8 +451,189 @@ fn game_loop(
       enemy_shot_effect,
       collision_effect,
       points_ui_effect,
+      boss_effect,
     ]),
   )
+}
+
+fn tick_boss_state(
+  boss_model: boss.Model,
+  towers: tower.TowerModel,
+  player: player.PlayerModel,
+  time: Float,
+) -> boss.Model {
+  let boss_model = case boss_model.state {
+    // this is just a default state, pick a new state
+    boss.Idle -> {
+      new_boss_state(boss_model, towers, player, time)
+    }
+    boss.Replicating(start_time) -> {
+      // just waiting
+      case time >. start_time +. boss.replication_time {
+        True -> new_boss_state(boss_model, towers, player, time)
+        False -> boss_model
+      }
+    }
+    boss.Blasting(
+      start_time,
+      animation,
+      animation_state,
+      angle,
+      last_damage_time,
+    ) -> {
+      case time >. start_time +. boss.blast_time {
+        True -> new_boss_state(boss_model, towers, player, time)
+        False -> {
+          let sprite_state =
+            spritesheet.update(
+              state: animation_state,
+              animation: animation,
+              delta_time: 0.01,
+            )
+
+          let new_state =
+            boss.Blasting(
+              start_time,
+              animation,
+              sprite_state,
+              angle,
+              last_damage_time,
+            )
+          boss.Model(..boss_model, state: new_state)
+        }
+      }
+    }
+    boss.Moving(target_x, target_y, last_move_time) -> {
+      // stagger the movement to make it look glitchy and jagged
+      case time >. last_move_time +. boss.move_time {
+        True -> {
+          let angle =
+            maths.atan2(target_y -. boss_model.y, target_x -. boss_model.x)
+          let distance =
+            utils.hypot(boss_model.y -. target_y, boss_model.x -. target_x)
+
+          case distance <=. boss.move_dist {
+            True -> {
+              // hit target, move and get new state
+              let boss_model =
+                boss.Model(..boss_model, x: target_x, y: target_y)
+              new_boss_state(boss_model, towers, player, time)
+            }
+            False -> {
+              let new_x = boss_model.x +. maths.cos(angle) *. boss.move_dist
+              let new_y = boss_model.y +. maths.sin(angle) *. boss.move_dist
+              let state =
+                boss.Moving(
+                  target_x: target_x,
+                  target_y: target_y,
+                  last_move_time: time,
+                )
+              boss.Model(..boss_model, x: new_x, y: new_y, state: state)
+            }
+          }
+        }
+        False -> boss_model
+      }
+    }
+    // don't handle this here
+    boss.Dying(_) -> boss_model
+  }
+  // move all the textures around
+  boss.tick_textures(boss_model)
+}
+
+fn new_boss_state(
+  boss_model: boss.Model,
+  towers: tower.TowerModel,
+  player: player.PlayerModel,
+  time: Float,
+) -> boss.Model {
+  // replicate is top priority
+  let stage = boss.replication_health_stage(boss_model.health)
+  case stage > boss_model.stage {
+    True -> {
+      let boss_model = boss.replicate(boss_model)
+      boss.Model(..boss_model, state: boss.Replicating(time))
+    }
+    False -> {
+      // just start blasting if we're close enough
+      // target tower first
+      let closest_tower =
+        towers.towers
+        |> list.fold(option.None, fn(accum, tower) {
+          let distance =
+            utils.hypot(tower.y -. boss_model.y, tower.x -. boss_model.x)
+          case accum {
+            option.Some(#(_existing_tower, existing_distance)) ->
+              case distance <. existing_distance {
+                True -> option.Some(#(tower, distance))
+                False -> accum
+              }
+            option.None -> option.Some(#(tower, distance))
+          }
+        })
+
+      case closest_tower {
+        option.Some(#(tower, distance)) if distance <=. boss.max_blast_distance -> {
+          let angle =
+            maths.atan2(boss_model.y -. tower.y, boss_model.x -. tower.x)
+          let #(anim, anim_state) = boss.setup_blast_animation()
+          let state = boss.Blasting(time, anim, anim_state, angle, option.None)
+          boss.Model(..boss_model, state: state)
+        }
+        _ -> {
+          let player_distance =
+            utils.hypot(player.y -. boss_model.y, player.x -. boss_model.x)
+          case player_distance <=. boss.max_blast_distance {
+            True -> {
+              let angle =
+                maths.atan2(player.y -. boss_model.y, player.x -. boss_model.x)
+              let #(anim, anim_state) = boss.setup_blast_animation()
+              let state =
+                boss.Blasting(time, anim, anim_state, angle, option.None)
+              boss.Model(..boss_model, state: state)
+            }
+            False -> {
+              // move towards tower if it exists
+              case closest_tower {
+                option.Some(#(tower, _)) -> {
+                  let angle =
+                    maths.atan2(
+                      tower.y -. boss_model.y,
+                      tower.x -. boss_model.x,
+                    )
+                    +. float.random()
+                    *. 0.6
+                    -. 0.3
+                  let move_dist = float.random() *. 50.0 +. 50.0
+                  let target_x = boss_model.x +. maths.cos(angle) *. move_dist
+                  let target_y = boss_model.y +. maths.sin(angle) *. move_dist
+                  let state = boss.Moving(target_x, target_y, time)
+                  boss.Model(..boss_model, state: state)
+                }
+                option.None -> {
+                  // move towards player
+                  let angle =
+                    maths.atan2(
+                      boss_model.y -. player.y,
+                      boss_model.x -. player.x,
+                    )
+                    +. float.random()
+                    *. 0.6
+                    -. 0.3
+                  let move_dist = float.random() *. 50.0 +. 50.0
+                  let target_x = boss_model.x +. maths.cos(angle) *. move_dist
+                  let target_y = boss_model.y +. maths.sin(angle) *. move_dist
+                  let state = boss.Moving(target_x, target_y, time)
+                  boss.Model(..boss_model, state: state)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 fn check_enemy_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
@@ -391,8 +686,10 @@ fn check_enemy_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
     shots
     |> utils.list_filter(shots_player_collisions)
 
-  let player_health =
-    model.player.health - 2 * list.length(shots_player_collisions)
+  let shot_damage =
+    shots_player_collisions |> list.fold(0, fn(acc, shot) { acc + shot.damage })
+
+  let player_health = model.player.health - shot_damage
   let player = player.PlayerModel(..model.player, health: player_health)
 
   let effect = case player_health <= 0 {
@@ -457,7 +754,10 @@ fn check_player_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
 
   let end_enemy_count = list.length(enemies)
 
-  let effect = case start_enemy_count - end_enemy_count, end_enemy_count == 0 {
+  let effect = case
+    start_enemy_count - end_enemy_count,
+    end_enemy_count == 0 && model.boss |> option.is_none()
+  {
     0, _ -> effect.none()
     enemies_down, True ->
       effect.batch([
@@ -477,9 +777,37 @@ fn check_player_shot_collisions(model: Model) -> #(Model, Effect(Msg)) {
       ])
   }
 
+  // check boss collision
+  let #(shots, boss) = case model.boss {
+    option.Some(boss) -> {
+      case boss.state {
+        boss.Dying(_) -> #(shots, option.Some(boss))
+        _ -> {
+          let boss_shot_collisions =
+            shots
+            |> list.filter(shot.is_player)
+            |> list.filter(fn(shot) { check_collision_boss_shot(boss, shot) })
+          let total_damage =
+            boss_shot_collisions
+            |> list.fold(0, fn(acc, shot) { acc + shot.damage })
+          let new_health = boss.health - total_damage
+          let new_shots = shots |> utils.list_filter(boss_shot_collisions)
+          let boss_state = case new_health <= 0 {
+            True -> boss.Dying(model.time)
+            False -> boss.state
+          }
+          let boss = boss.Model(..boss, state: boss_state, health: new_health)
+          #(new_shots, option.Some(boss))
+        }
+      }
+    }
+    option.None -> #(shots, option.None)
+  }
+
   #(
     Model(
       ..model,
+      boss: boss,
       shots: shot.ShotModel(shots),
       enemies: enemy.EnemyModel(enemies),
     ),
@@ -641,6 +969,18 @@ fn check_collision_player_shot(
   utils.check_collision_circles(player_circle, shot_circle)
 }
 
+fn check_collision_boss_shot(boss_model: boss.Model, shot: shot.Shot) -> Bool {
+  let boss_rect =
+    utils.Rectangle(
+      boss_model.x,
+      boss_model.y,
+      boss_model.width,
+      boss_model.height,
+    )
+  let shot_circle = utils.Circle(shot.x, shot.y, shot.size)
+  utils.check_collision_circle_rect(shot_circle, boss_rect)
+}
+
 pub fn view(
   model: Model,
   ctx: tiramisu.Context(String),
@@ -683,6 +1023,10 @@ pub fn view(
       enemy.view(model.enemies),
       world_ui.view(model.world_ui, model.asset_cache),
     ]
+      |> list.append(case model.boss {
+        option.Some(boss_model) -> [boss.view(boss_model, model.asset_cache)]
+        option.None -> []
+      })
       |> list.append(background),
   )
 }

@@ -16,6 +16,12 @@ pub const cannon_asset: String = "cannon.webp"
 
 pub const player_shot_asset: String = "shot.webp"
 
+pub const boss_asset_1: String = "boss_texture_1.webp"
+
+pub const boss_asset_2: String = "boss_texture_2.webp"
+
+pub const blast_sheet_asset: String = "blast_sheet.webp"
+
 pub const arial_font_asset: String = "fonts/arial_bold.json"
 
 pub const background_star_asset: String = "star.glb"
@@ -32,6 +38,9 @@ pub fn load_assets_game() -> Effect(LoadState) {
     asset.TextureAsset(decor_asset),
     asset.TextureAsset(player_shot_asset),
     asset.TextureAsset(cannon_asset),
+    asset.TextureAsset(boss_asset_1),
+    asset.TextureAsset(boss_asset_2),
+    asset.TextureAsset(blast_sheet_asset),
     asset.FontAsset(arial_font_asset),
   ])
 }

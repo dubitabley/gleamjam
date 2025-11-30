@@ -30,6 +30,7 @@ pub type State {
   Paused(PlayingInfo, controls_open: Bool, points: Int)
   WaveComplete(wave_num: Int, points: Int, controls_open: Bool)
   GameOver
+  WonGame
 }
 
 pub type PlayingInfo {
@@ -51,6 +52,7 @@ pub type Msg {
   ToggleControls
   UpdatePointsUi(points: Int)
   GameOverUi
+  WinGameUi
   BackToMenu
 }
 
@@ -79,7 +81,7 @@ fn init_ui(_flags) -> #(Model, ui_effect.Effect(Msg)) {
 
 fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
   case model.state, msg {
-    Menu(_), StartLoad | GameOver, StartLoad -> {
+    Menu(_), StartLoad | GameOver, StartLoad | WonGame, StartLoad -> {
       let load_effect =
         loader.load_assets_game()
         |> ui_effect.map(fn(load_info) { LoadAssetInfo(load_info) })
@@ -150,6 +152,7 @@ fn update_ui(model: Model, msg: Msg) -> #(Model, ui_effect.Effect(Msg)) {
       ui_effect.none(),
     )
     _, GameOverUi -> #(Model(state: GameOver), ui_effect.none())
+    _, WinGameUi -> #(Model(state: WonGame), ui_effect.none())
     _, BackToMenu -> #(Model(state: Menu(False)), ui_effect.none())
     _, StartLoad
     | _, StartWaveUi(_)
@@ -174,6 +177,7 @@ fn view_ui(model: Model) -> Element(Msg) {
       WaveComplete(wave_num, points, controls_open) ->
         wave_over_overlay(wave_num, points, controls_open)
       GameOver -> game_over_overlay()
+      WonGame -> win_game_overlay()
     },
   ])
 }
@@ -257,8 +261,8 @@ fn game_buttons(paused: Bool, controls_open: Bool) -> Element(Msg) {
 
 fn controls_button(controls_open: Bool) -> Element(Msg) {
   let button_text = case controls_open {
-    True -> "Close Controls/Info"
-    False -> "Open Controls/Info"
+    True -> "Close Help"
+    False -> "Open Help"
   }
   html.button([class("game-button"), event.on_click(ToggleControls)], [
     html.text(button_text),
@@ -289,6 +293,23 @@ fn game_over_overlay() -> Element(Msg) {
       ]),
       html.div([class("lucy-wrapper")], [
         html.img([class("lucy-over"), attribute.src("lucy_over.webp")]),
+      ]),
+    ]),
+  ])
+}
+
+fn win_game_overlay() {
+  html.div([class("main-info-wrapper")], [
+    html.div([class("game-over-button-wrapper")], [
+      html.h1([class("game-over-text")], [html.text("You won!")]),
+      html.button([class("game-over-button"), event.on_click(BackToMenu)], [
+        html.text("Back to Menu"),
+      ]),
+      html.button([class("game-over-button"), event.on_click(StartLoad)], [
+        html.text("Play Again"),
+      ]),
+      html.div([class("lucy-wrapper")], [
+        html.img([class("lucy-over"), attribute.src("lucy_win.webp")]),
       ]),
     ]),
   ])
@@ -337,7 +358,11 @@ fn wave_over_overlay(
 }
 
 fn wave_start_overlay(wave_num: Int) -> Element(Msg) {
-  main_info_overlay("Starting wave " <> int.to_string(wave_num), True)
+  let text = case wave_num < 5 {
+    True -> "Starting wave " <> int.to_string(wave_num)
+    False -> "Final wave!"
+  }
+  main_info_overlay(text, True)
 }
 
 fn pause_info_overlay() -> Element(Msg) {
@@ -367,7 +392,7 @@ fn controls_overlay() -> Element(Msg) {
           [html.img([class("close-button"), attribute.src("close_icon.svg")])],
         ),
       ]),
-      html.h2([], [html.text("Game")]),
+      html.h2([], [html.text("Help")]),
       html.div([], [html.text("Defend your diamond towers!")]),
       html.br([]),
       html.div([], [
@@ -449,7 +474,6 @@ pub type GameMsg {
   GameMsg(game.Msg)
   LoadBackground(asset.AssetCache)
   ToggleGamePause
-  EndGame
   Tick
 }
 
@@ -493,6 +517,9 @@ pub fn update(
     GamePlaying(_), GameMsg(game.GameOver) -> {
       #(GameModel(..model, state: GameMenu), ui.dispatch_to_lustre(GameOverUi))
     }
+    GamePlaying(_), GameMsg(game.WinGame) -> {
+      #(GameModel(..model, state: GameMenu), ui.dispatch_to_lustre(WinGameUi))
+    }
     GamePlaying(game_model), ToggleGamePause -> #(
       GameModel(..model, state: GamePaused(game_model)),
       effect.none(),
@@ -501,9 +528,6 @@ pub fn update(
       let effect = game.resume()
       let effect = effect.map(effect, fn(e) { GameMsg(e) })
       #(GameModel(..model, state: GamePlaying(game_model)), effect)
-    }
-    _, EndGame -> {
-      #(GameModel(..model, state: GameMenu), ui.dispatch_to_lustre(GameOverUi))
     }
     _, LoadBackground(asset_cache) -> #(
       GameModel(..model, asset_cache: option.Some(asset_cache)),

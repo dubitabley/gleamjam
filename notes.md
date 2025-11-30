@@ -25,6 +25,11 @@ Also because it's a game jam I did a lot of dorcing myself to push through and w
 
 I also think the Elm architecture is cool but not amazing when you have a game loop that handles most things. I think I could've done certain things in a cleaner way though so might be partially on me. Also having to communicate info between tiramisu and lustre is a bit awkward but it is cool how it works.
 
+Minor nitpicks:
+
+- It's weird that list.range() is inclusive on both start and end e.g. list.range(0, 5) generates 6 entries
+- list.filter_map should use option instead of result
+
 ## Todo
 
 - try out animations

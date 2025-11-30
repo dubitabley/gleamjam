@@ -204,4 +204,5 @@ button:hover {
 
 .game-over-text {
     font-size: 60px;
+    color: var(--pink-colour);
 }
